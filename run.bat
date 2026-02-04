@@ -1,0 +1,3 @@
+@echo off
+echo Starting 21 Card Game...
+"C:\Program Files\Java\jdk-11.0.1\bin\java.exe" -cp out Main
