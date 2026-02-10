@@ -152,12 +152,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   return (
     <View style={styles.container}>
-      {/* Background decorative blur elements */}
-      <View style={styles.backgroundDecorations}>
-        <View style={[styles.blurCircle, styles.blurCircle1]} />
-        <View style={[styles.blurCircle, styles.blurCircle2]} />
-        <View style={[styles.blurCircle, styles.blurCircle3]} />
-      </View>
+      {/* Background kept clean to match logo seamlessly */}
 
       <SafeAreaView style={styles.safeArea}>
         {/* Language toggle button */}
@@ -184,32 +179,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             {/* Logo */}
             <View style={styles.logoContainer}>
               <Image 
-                source={require('../../assets/logo-21.png')}
+                source={language === 'en' 
+                  ? require('../../assets/logo-en.png') 
+                  : require('../../assets/logo-main.png')}
                 style={styles.logo}
                 resizeMode="contain"
+                accessibilityLabel={language === 'en' ? '21 Card Game logo' : 'לוגו משחק קלפים 21'}
               />
-            </View>
-
-            {/* Title */}
-            <Text style={styles.title}>{t.subtitle}</Text>
-            <Text style={styles.tagline}>{t.tagline}</Text>
-
-            {/* Card illustration */}
-            <View style={styles.cardIllustration}>
-              {/* Ace of Spades */}
-              <View style={[styles.simpleCard, styles.cardLeft]}>
-                <Text style={styles.cardRank}>A</Text>
-                <View style={styles.cardSuitContainer}>
-                  <Text style={styles.cardSuit}>♠</Text>
-                </View>
-              </View>
-              {/* Ace of Hearts */}
-              <View style={[styles.simpleCard, styles.cardRight]}>
-                <Text style={[styles.cardRank, styles.cardRankRed]}>A</Text>
-                <View style={styles.cardSuitContainer}>
-                  <Text style={[styles.cardSuit, styles.cardSuitRed]}>♥</Text>
-                </View>
-              </View>
             </View>
 
             {/* Game Mode Section */}
@@ -272,17 +248,17 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             <View style={styles.rulesSection}>
               <Text style={styles.rulesTitle}>{t.rulesTitle}</Text>
               <View style={styles.rulesList}>
-                <View style={styles.ruleItem}>
+                <View style={[styles.ruleItem, language === 'he' && styles.ruleItemRtl]}>
                   <Text style={styles.ruleBullet}>•</Text>
-                  <Text style={styles.ruleText}>{t.rule1.replace('• ', '')}</Text>
+                  <Text style={[styles.ruleText, language === 'he' && styles.ruleTextRtl]}>{t.rule1.replace('• ', '')}</Text>
                 </View>
-                <View style={styles.ruleItem}>
+                <View style={[styles.ruleItem, language === 'he' && styles.ruleItemRtl]}>
                   <Text style={styles.ruleBullet}>•</Text>
-                  <Text style={styles.ruleText}>{t.rule2.replace('• ', '')}</Text>
+                  <Text style={[styles.ruleText, language === 'he' && styles.ruleTextRtl]}>{t.rule2.replace('• ', '')}</Text>
                 </View>
-                <View style={styles.ruleItem}>
+                <View style={[styles.ruleItem, language === 'he' && styles.ruleItemRtl]}>
                   <Text style={styles.ruleBullet}>•</Text>
-                  <Text style={styles.ruleText}>{t.rule3.replace('• ', '')}</Text>
+                  <Text style={[styles.ruleText, language === 'he' && styles.ruleTextRtl]}>{t.rule3.replace('• ', '')}</Text>
                 </View>
               </View>
             </View>
@@ -317,38 +293,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  backgroundDecorations: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: 'hidden',
-  },
-  blurCircle: {
-    position: 'absolute',
-    borderRadius: 9999,
-    backgroundColor: colors.primary,
-    opacity: 0.05,
-  },
-  blurCircle1: {
-    width: 128,
-    height: 128,
-    top: 40,
-    left: 40,
-  },
-  blurCircle2: {
-    width: 192,
-    height: 192,
-    bottom: 80,
-    right: 80,
-  },
-  blurCircle3: {
-    width: 96,
-    height: 96,
-    top: '33%',
-    right: 40,
-  },
   scrollContent: {
     flexGrow: 1,
     padding: 32,
@@ -362,74 +306,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoContainer: {
-    marginBottom: 16,
-  },
-  logo: {
-    width: 160,
-    height: 160,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: colors.primary,
-    marginBottom: 4,
-    letterSpacing: 0.5,
-  },
-  tagline: {
-    fontSize: 14,
-    color: colors.mutedForeground,
-    marginBottom: 32,
-  },
-  cardIllustration: {
-    position: 'relative',
-    height: 112,
-    width: 160,
-    marginBottom: 32,
-  },
-  simpleCard: {
-    position: 'absolute',
-    width: 80,
-    height: 112,
-    backgroundColor: colors.card,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  cardLeft: {
-    left: 16,
-    top: 0,
-    transform: [{ rotate: '-12deg' }],
-  },
-  cardRight: {
-    right: 16,
-    top: 0,
-    transform: [{ rotate: '12deg' }],
-  },
-  cardRank: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.cardForeground,
-  },
-  cardRankRed: {
-    color: colors.cardRed,
-  },
-  cardSuitContainer: {
-    flex: 1,
+    marginBottom: 24,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#0d5a2e',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 30,
+    elevation: 20,
   },
-  cardSuit: {
-    fontSize: 30,
-    color: colors.cardForeground,
-  },
-  cardSuitRed: {
-    color: colors.cardRed,
+  logo: {
+    width: 340,
+    height: 340,
   },
   sectionTitle: {
     fontSize: 18,
@@ -542,6 +434,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 8,
   },
+  ruleItemRtl: {
+    flexDirection: 'row-reverse',
+  },
   ruleBullet: {
     fontSize: 14,
     color: colors.primary,
@@ -552,6 +447,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.foreground,
     lineHeight: 20,
+  },
+  ruleTextRtl: {
+    textAlign: 'right',
   },
   startButton: {
     width: '100%',

@@ -18,11 +18,11 @@ const hslToHex = (h: number, s: number, l: number): string => {
 };
 
 export const colors = {
-  // Background colors (felt table) - matching card-arch-designer exactly
-  background: hslToHex(145, 50, 18), // --background: 145 50% 18%
-  felt: hslToHex(145, 50, 18),
-  feltDark: hslToHex(145, 55, 12), // --felt-dark: 145 55% 12%
-  feltLight: hslToHex(145, 45, 25), // --felt-light: 145 45% 25%
+  // Background colors (felt table) - blended match to logo background
+  background: '#0a3d1f', // blended between logo edge and center colors
+  felt: '#0a3d1f',
+  feltDark: '#042c15', // darker felt matching logo edges
+  feltLight: '#0f4a28', // lighter felt
 
   // Foreground/text colors
   foreground: hslToHex(45, 100, 96), // --foreground: 45 100% 96%
@@ -40,7 +40,7 @@ export const colors = {
   goldLight: hslToHex(45, 95, 70), // --gold-light: 45 95% 70%
 
   // Secondary colors
-  secondary: hslToHex(145, 35, 28), // --secondary: 145 35% 28%
+  secondary: hslToHex(150, 40, 30), // --secondary: slightly lighter than background
   secondaryForeground: hslToHex(45, 100, 96), // --secondary-foreground: 45 100% 96%
 
   // Accent colors
@@ -48,11 +48,11 @@ export const colors = {
   accentForeground: hslToHex(0, 0, 10), // --accent-foreground: 0 0% 10%
 
   // Muted colors
-  muted: hslToHex(145, 30, 25), // --muted: 145 30% 25%
+  muted: hslToHex(150, 35, 28), // --muted: muted green
   mutedForeground: hslToHex(145, 20, 60), // --muted-foreground: 145 20% 60%
 
   // Border colors
-  border: hslToHex(145, 30, 30), // --border: 145 30% 30%
+  border: hslToHex(150, 35, 33), // --border: subtle border green
 
   // Success color
   success: hslToHex(142, 70, 45), // --success: 142 70% 45%
@@ -62,7 +62,7 @@ export const colors = {
   destructiveForeground: hslToHex(0, 0, 100), // --destructive-foreground: 0 0% 100%
 
   // Popover colors
-  popover: hslToHex(145, 40, 22), // --popover: 145 40% 22%
+  popover: hslToHex(150, 45, 26), // --popover: popover green
   popoverForeground: hslToHex(45, 100, 96), // --popover-foreground: 45 100% 96%
 };
 
