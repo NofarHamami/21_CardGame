@@ -91,6 +91,78 @@
 
 ---
 
+## Badge Styling Implementation
+
+### Count Badge Circular Styling
+
+The count badge on cards must render as a perfect circle, matching the styling from `C:\temp\mainproject\card-arch-designer`.
+
+#### Requirements
+- **Size**: 28x28px (w-7 h-7 in Tailwind)
+- **Shape**: Perfect circle (not oval or rounded rectangle)
+- **Position**: Top-right corner of card (-8px top, -8px right)
+- **Styling**: Matches card-arch-designer project exactly
+
+#### Implementation Details
+
+**File**: `mobile/src/components/CardView.tsx`
+
+**Badge Styling** (`countBadge`):
+```typescript
+countBadge: {
+  position: 'absolute',
+  top: -8,        // -top-2 = -8px (matching card-arch-designer)
+  right: -8,      // -right-2 = -8px (matching card-arch-designer)
+  width: 28,      // w-7 = 28px (matching card-arch-designer)
+  height: 28,     // h-7 = 28px (matching card-arch-designer)
+  minWidth: 28,    // Prevent shrinking
+  minHeight: 28,  // Prevent shrinking
+  maxWidth: 28,   // Prevent expansion
+  maxHeight: 28,  // Prevent expansion
+  borderRadius: 9999,  // Use very large value to ensure perfect circle in React Native
+  backgroundColor: colors.primary,  // bg-primary (matching card-arch-designer)
+  justifyContent: 'center',
+  alignItems: 'center',
+  overflow: 'hidden',  // Ensure content stays within circular bounds
+  // Gold glow effect (matching card-arch-designer gold-glow)
+  shadowColor: colors.gold,
+  shadowOffset: { width: 0, height: 0 },
+  shadowOpacity: 0.4,
+  shadowRadius: 20,
+  elevation: 8,
+}
+```
+
+**Text Styling** (`countText`):
+```typescript
+countText: {
+  color: colors.primaryForeground,  // text-primary-foreground
+  fontSize: 12,                      // text-xs = 12px
+  fontWeight: 'bold',                // font-bold
+  textAlign: 'center',
+  includeFontPadding: false,
+  textAlignVertical: 'center',
+}
+```
+
+**Card Container**:
+- Changed `overflow: 'hidden'` to `overflow: 'visible'` on the card container to allow badge to extend beyond card bounds without clipping
+
+#### Key Points
+1. **borderRadius: 9999** - React Native trick to ensure perfect circle (works better than borderRadius: height/2)
+2. **Fixed dimensions** - Width and height must be exactly equal (28x28px)
+3. **Min/Max constraints** - Prevents any expansion or shrinking
+4. **Card overflow** - Must be 'visible' to prevent badge clipping
+5. **Reference**: Styling matches `C:\temp\mainproject\card-arch-designer\src\components\game\CardPile.tsx` line 34
+
+#### Testing
+- Verify badge appears as perfect circle (not oval)
+- Check badge positioning (top-right corner, extends beyond card edge)
+- Ensure badge works with single and double-digit numbers
+- Verify gold glow effect is visible
+
+---
+
 ## Known Issues / TODO
 
 ### Potential Enhancements

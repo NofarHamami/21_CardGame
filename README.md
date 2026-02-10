@@ -1,33 +1,91 @@
 # 21 Card Game (משחק קלפים 21)
 
-A Java Swing implementation of the 21 card game.
+A React Native mobile implementation of the 21 card game.
+
+## Overview
+
+This is a mobile card game built with React Native, TypeScript, and Expo. The game supports 2-4 players and features a responsive UI that adapts to different screen sizes.
 
 ## Requirements
 
-- Java 11 or higher
+- Node.js 18.x or higher
+- npm or yarn
+- Expo CLI (installed globally or via npx)
 
-## How to Compile
+## Getting Started
 
-Run the compile script:
-```
-compile.bat
-```
+### Installation
 
-Or manually:
-```
-javac -d out -sourcepath src src/Main.java src/model/*.java src/engine/*.java src/gui/*.java
-```
-
-## How to Run
-
-Run the run script:
-```
-run.bat
+1. Navigate to the mobile directory:
+```bash
+cd mobile
 ```
 
-Or manually:
+2. Install dependencies:
+```bash
+npm install
 ```
-java -cp out Main
+
+### Running the App
+
+#### Development
+
+Start the Expo development server:
+```bash
+npm start
+```
+
+Then:
+- Press `a` for Android emulator
+- Press `i` for iOS simulator
+- Press `w` for web browser
+- Scan QR code with Expo Go app on your device
+
+#### Platform-Specific
+
+```bash
+npm run android    # Android
+npm run ios        # iOS
+npm run web        # Web
+```
+
+### Testing
+
+Run tests:
+```bash
+npm test
+```
+
+Run tests in watch mode:
+```bash
+npm run test:watch
+```
+
+Run tests with coverage:
+```bash
+npm run test:coverage
+```
+
+### Code Quality
+
+Lint code:
+```bash
+npm run lint
+```
+
+Fix linting issues:
+```bash
+npm run lint:fix
+```
+
+Format code:
+```bash
+npm run format
+```
+
+Check formatting:
+```bash
+npm run format:check
 ```
 
 ## Game Rules
@@ -60,29 +118,78 @@ java -cp out Main
 - Playing a card to storage immediately ends your turn
 
 ### How to Play (Controls)
-1. Click a card to select it (hand, 21-pile top, or storage top)
-2. Click a center pile to play the selected card there
-3. Click a storage stack to place the selected card there (ends turn)
-4. Click "End Turn" button when done (only available after playing at least 1 card)
+1. Tap a card to select it (hand, 21-pile top, or storage top)
+2. Tap a center pile to play the selected card there
+3. Tap a storage stack to place the selected card there (ends turn)
+4. Tap "End Turn" button when done (only available after playing at least 1 card)
 
 ## Project Structure
 
 ```
-src/
-├── Main.java                 # Entry point
-├── model/
-│   ├── Card.java            # Playing card
-│   ├── Suit.java            # Card suits enum
-│   ├── Rank.java            # Card ranks enum
-│   ├── Deck.java            # Deck of cards
-│   ├── Player.java          # Player state
-│   └── CenterPile.java      # Center pile logic
-├── engine/
-│   └── GameEngine.java      # Game logic
-└── gui/
-    ├── CardPanel.java       # Card rendering
-    ├── PlayerPanel.java     # Player area UI
-    ├── CenterPanel.java     # Center piles UI
-    ├── GameController.java  # UI-Engine connection
-    └── GameWindow.java      # Main window
+mobile/
+├── src/
+│   ├── components/          # React components
+│   ├── engine/              # Game logic engine
+│   ├── models/              # Data models
+│   ├── hooks/               # React hooks
+│   ├── screens/             # Screen components
+│   ├── theme/               # Theming
+│   ├── utils/               # Utilities
+│   └── constants.ts         # Game constants
+├── .github/workflows/       # CI/CD workflows
+├── jest.config.js          # Jest configuration
+├── .eslintrc.js            # ESLint configuration
+├── .prettierrc             # Prettier configuration
+└── package.json            # Dependencies and scripts
 ```
+
+For detailed architecture documentation, see [ARCHITECTURE.md](mobile/ARCHITECTURE.md).
+
+## Features
+
+- ✅ Responsive design for phones and tablets
+- ✅ Support for 2-4 players
+- ✅ Touch-friendly interface
+- ✅ Accessibility features (screen reader support)
+- ✅ Error handling with user-friendly messages
+- ✅ Comprehensive test coverage
+- ✅ TypeScript for type safety
+- ✅ ESLint and Prettier for code quality
+
+## Development
+
+### Adding New Features
+
+1. Create feature branch from `main`
+2. Make changes following the code style guidelines
+3. Write tests for new functionality
+4. Ensure all tests pass and linting is clean
+5. Submit pull request
+
+### Code Style
+
+- Use TypeScript for all new code
+- Follow ESLint rules (run `npm run lint`)
+- Format code with Prettier (run `npm run format`)
+- Write tests for game logic
+- Add JSDoc comments for public APIs
+
+## CI/CD
+
+The project uses GitHub Actions for continuous integration:
+
+- **CI Workflow**: Runs on every push/PR
+  - Linting and formatting checks
+  - Type checking
+  - Test execution
+  - Security audit
+
+- **Release Workflow**: Builds and releases mobile apps
+
+## License
+
+[Add your license here]
+
+## Contributing
+
+[Add contributing guidelines here]
