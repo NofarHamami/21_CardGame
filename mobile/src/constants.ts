@@ -34,6 +34,7 @@ export const MAX_PLAYERS = 4;
 export const SCREEN_BREAKPOINTS = {
   SMALL: 375,
   LARGE: 768,
+  DESKTOP: 992,
 } as const;
 
 /**

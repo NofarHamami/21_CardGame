@@ -99,11 +99,12 @@ export function StorageView({
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
+    zIndex: 1, // Ensure storage is above the mainRow's stacking context
   },
   horizontalStorageRow: {
     flexDirection: 'row',
     gap: SPACING.GAP_SMALL,
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     justifyContent: 'center',
     maxWidth: '100%',
   },

@@ -60,8 +60,9 @@ const getScreenDimensions = () => {
 const getResponsiveStyles = (screenWidth: number, screenHeight: number) => {
   const isSmallScreen = screenWidth < 375; // iPhone SE, small phones
   const isLargeScreen = screenWidth >= 768; // Tablets
+  const isDesktop = screenWidth >= 992; // Desktop
   
-  // Side section width for left/right players
+  // Side section width for left/right players (used only for non-desktop)
   // Maximize side player size: give them as much width as possible
   // Center piles can wrap/stack vertically when space is tight
   const minCenterWidth = isSmallScreen ? 70 : isLargeScreen ? 200 : 80;
@@ -76,6 +77,7 @@ const getResponsiveStyles = (screenWidth: number, screenHeight: number) => {
   return {
     isSmallScreen,
     isLargeScreen,
+    isDesktop,
     sideWidth,
     paddingVertical: isSmallScreen ? 2 : 4,
     paddingHorizontal: isSmallScreen ? 2 : 4,
@@ -115,7 +117,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
   const responsive = React.useMemo(() => getResponsiveStyles(screenWidth, screenHeight), [screenWidth, screenHeight]);
   
   // Memoize styles to avoid recreating on every render
-  const styles = React.useMemo(() => getStyles(screenWidth, screenHeight, responsive.sideWidth), [screenWidth, screenHeight, responsive.sideWidth]);
+  const styles = React.useMemo(() => getStyles(screenWidth, screenHeight, responsive.sideWidth, responsive.isDesktop), [screenWidth, screenHeight, responsive.sideWidth, responsive.isDesktop]);
 
   // Handle middle row layout measurement
   const handleMiddleRowLayout = useCallback((e: LayoutChangeEvent) => {
@@ -457,7 +459,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
   );
 }
 
-const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number) => {
+const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number, isDesktop: boolean) => {
   const responsive = getResponsiveStyles(screenWidth, screenHeight);
   
   return StyleSheet.create({
@@ -516,13 +518,11 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number)
       justifyContent: 'center',
       paddingHorizontal: responsive.paddingHorizontal,
       minHeight: 150,
+      ...(isDesktop ? { zIndex: 1, overflow: 'visible' as const } : {}),
     },
-    leftSection: {
-      width: sideWidth,
-      height: '100%',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
+    leftSection: isDesktop
+      ? { justifyContent: 'center' as const, alignItems: 'center' as const }
+      : { width: sideWidth, height: '100%' as const, justifyContent: 'center' as const, alignItems: 'center' as const },
     centerSection: {
       flex: 1,
       justifyContent: 'center',
@@ -530,12 +530,9 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number)
       minWidth: 0,
       paddingHorizontal: responsive.centerPaddingHorizontal,
     },
-    rightSection: {
-      width: sideWidth,
-      height: '100%',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
+    rightSection: isDesktop
+      ? { justifyContent: 'center' as const, alignItems: 'center' as const }
+      : { width: sideWidth, height: '100%' as const, justifyContent: 'center' as const, alignItems: 'center' as const },
     bottomSection: {
       alignItems: 'center',
       paddingVertical: responsive.paddingVertical,

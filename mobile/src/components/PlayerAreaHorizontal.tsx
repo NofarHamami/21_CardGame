@@ -44,6 +44,7 @@ interface PlayerAreaHorizontalProps {
   position: 'top' | 'bottom';
   isSmallScreen: boolean;
   isLargeScreen: boolean;
+  isDesktop?: boolean;
   newlyDrawnCards?: Card[];
 }
 
@@ -60,6 +61,7 @@ export function PlayerAreaHorizontal({
   position,
   isSmallScreen,
   isLargeScreen,
+  isDesktop = false,
   newlyDrawnCards = [],
 }: PlayerAreaHorizontalProps) {
   const [language, setLanguage] = useState<Language>('he');
@@ -85,11 +87,12 @@ export function PlayerAreaHorizontal({
     onSelectCard(card, source, index);
   };
 
-  const styles = createStyles(isSmallScreen, isLargeScreen);
+  const styles = createStyles(isSmallScreen, isLargeScreen, isDesktop);
 
   return (
     <View style={[
       styles.container,
+      isDesktop && !isCurrentPlayer && styles.desktopCompactContainer,
       isCurrentPlayer && styles.currentPlayerContainer,
     ]}>
       {/* Header: Avatar + Name */}
@@ -173,7 +176,7 @@ export function PlayerAreaHorizontal({
         onSelectCard={onSelectCard}
         onPlayToStorage={onPlayToStorage}
         isCardSelected={isCardSelected}
-        compact={position === 'top'}
+        compact={isDesktop || position === 'top'}
         horizontal={true}
         language={language}
       />
@@ -181,14 +184,20 @@ export function PlayerAreaHorizontal({
   );
 }
 
-const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSheet.create({
+const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean, isDesktop: boolean) => StyleSheet.create({
   container: {
     alignItems: 'center',
     padding: isSmallScreen ? SPACING.CONTAINER_PADDING_SMALL : SPACING.CONTAINER_PADDING_DEFAULT,
     backgroundColor: `${colors.muted}33`,
     borderRadius: 12,
     marginHorizontal: isSmallScreen ? 2 : 5,
-    maxWidth: '100%',
+    ...(isDesktop
+      ? { width: 316, flexDirection: 'column' as const }
+      : { maxWidth: '100%' }),
+  },
+  desktopCompactContainer: {
+    height: 296,
+    overflow: 'hidden' as const,
   },
   currentPlayerContainer: {
     backgroundColor: `${colors.muted}4D`,
@@ -216,6 +225,7 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     gap: isSmallScreen ? SPACING.MAIN_ROW_GAP_SMALL : isLargeScreen ? SPACING.MAIN_ROW_GAP_LARGE : SPACING.MAIN_ROW_GAP_DEFAULT,
     marginBottom: isSmallScreen ? SPACING.MAIN_ROW_MARGIN_SMALL : isLargeScreen ? SPACING.MAIN_ROW_MARGIN_LARGE : SPACING.MAIN_ROW_MARGIN_DEFAULT,
     flexWrap: 'nowrap',
+    zIndex: 0, // Create stacking context so hand card z-index doesn't block storage below
   },
   pileSection: {
     alignItems: 'center',

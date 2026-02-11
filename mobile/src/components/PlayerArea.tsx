@@ -51,6 +51,7 @@ export function PlayerArea({
 
   const isSmallScreen = screenWidth < SCREEN_BREAKPOINTS.SMALL;
   const isLargeScreen = screenWidth >= SCREEN_BREAKPOINTS.LARGE;
+  const isDesktop = screenWidth >= SCREEN_BREAKPOINTS.DESKTOP;
 
   // Handle measurement of the inner horizontal layout (for scaling)
   // Only measure once to avoid infinite re-render loops
@@ -62,7 +63,27 @@ export function PlayerArea({
     }
   }, [measuredHeight]);
 
-  // For left/right positions: render horizontal layout with rotation + scale
+  // On desktop: all positions use the same fixed-size layout (no rotation)
+  if (isDesktop) {
+    const mappedPosition = (position === 'left' || position === 'right') ? 'top' : position;
+    return (
+      <PlayerAreaHorizontal
+        player={player}
+        isCurrentPlayer={isCurrentPlayer}
+        selectedCard={selectedCard}
+        onSelectCard={onSelectCard}
+        onPlayToStorage={onPlayToStorage}
+        showHandCards={showHandCards}
+        position={mappedPosition}
+        isSmallScreen={isSmallScreen}
+        isLargeScreen={isLargeScreen}
+        isDesktop={isDesktop}
+        newlyDrawnCards={newlyDrawnCards}
+      />
+    );
+  }
+
+  // For left/right positions (non-desktop): render horizontal layout with rotation + scale
   if (position === 'left' || position === 'right') {
     const rotation = position === 'left' ? '90deg' : '-90deg';
     
@@ -139,6 +160,7 @@ export function PlayerArea({
       position={position}
       isSmallScreen={isSmallScreen}
       isLargeScreen={isLargeScreen}
+      isDesktop={isDesktop}
       newlyDrawnCards={newlyDrawnCards}
     />
   );
