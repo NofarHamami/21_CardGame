@@ -8,7 +8,6 @@ import {
   Dimensions,
   BackHandler,
   Platform,
-  LayoutChangeEvent,
   SafeAreaView,
 } from 'react-native';
 import { Card, CardSource, Player } from '../models';
@@ -61,22 +60,9 @@ const getResponsiveStyles = (screenWidth: number, screenHeight: number) => {
   const isSmallScreen = screenWidth < 375; // iPhone SE, small phones
   const isLargeScreen = screenWidth >= 768; // Tablets
   
-  // Side section width for left/right players
-  // Maximize side player size: give them as much width as possible
-  // Center piles can wrap/stack vertically when space is tight
-  const minCenterWidth = isSmallScreen ? 70 : isLargeScreen ? 200 : 80;
-  const totalPadding = isSmallScreen ? 8 : 12;
-  const availableForSides = Math.max(0, screenWidth - minCenterWidth - totalPadding);
-  // Each side gets half the remaining space, capped at 300px max
-  const sideWidth = Math.max(
-    isSmallScreen ? 100 : 130,
-    Math.min(300, Math.floor(availableForSides / 2))
-  );
-  
   return {
     isSmallScreen,
     isLargeScreen,
-    sideWidth,
     paddingVertical: isSmallScreen ? 2 : 4,
     paddingHorizontal: isSmallScreen ? 2 : 4,
     centerPaddingHorizontal: isSmallScreen ? 2 : 4,
@@ -91,12 +77,7 @@ const getResponsiveStyles = (screenWidth: number, screenHeight: number) => {
 export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [language, setLanguage] = useState<Language>('he');
-  // Initialize with an estimate to avoid flash on first render
-  const [middleRowHeight, setMiddleRowHeight] = useState(() => {
-    const dims = getScreenDimensions();
-    // Estimate: screen height minus top/bottom players, action buttons, safe area
-    return Math.max(150, dims.height - 500);
-  });
+  
 
   useEffect(() => {
     loadLanguagePreference().then(lang => {
@@ -115,15 +96,8 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
   const responsive = React.useMemo(() => getResponsiveStyles(screenWidth, screenHeight), [screenWidth, screenHeight]);
   
   // Memoize styles to avoid recreating on every render
-  const styles = React.useMemo(() => getStyles(screenWidth, screenHeight, responsive.sideWidth), [screenWidth, screenHeight, responsive.sideWidth]);
+  const styles = React.useMemo(() => getStyles(screenWidth, screenHeight), [screenWidth, screenHeight]);
 
-  // Handle middle row layout measurement
-  const handleMiddleRowLayout = useCallback((e: LayoutChangeEvent) => {
-    const { height } = e.nativeEvent.layout;
-    if (height > 0) {
-      setMiddleRowHeight(height);
-    }
-  }, []);
   const {
     players,
     currentPlayer,
@@ -289,10 +263,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
           )}
 
           {/* MIDDLE ROW: Left Player - Center - Right Player */}
-          <View 
-            style={styles.middleRow}
-            onLayout={handleMiddleRowLayout}
-          >
+          <View style={styles.middleRow}>
             {/* LEFT PLAYER (Player 3 - rotated horizontal, faces right) */}
             {player3 && (
               <View 
@@ -310,8 +281,6 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                   compact={currentPlayerIndex !== 2}
                   position="left"
                   newlyDrawnCards={getNewlyDrawnCardsForPlayer(2)}
-                  containerWidth={responsive.sideWidth}
-                  containerHeight={middleRowHeight}
                 />
               </View>
             )}
@@ -346,8 +315,6 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                   compact={currentPlayerIndex !== 3}
                   position="right"
                   newlyDrawnCards={getNewlyDrawnCardsForPlayer(3)}
-                  containerWidth={responsive.sideWidth}
-                  containerHeight={middleRowHeight}
                 />
               </View>
             )}
@@ -457,7 +424,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
   );
 }
 
-const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number) => {
+const getStyles = (screenWidth: number, screenHeight: number) => {
   const responsive = getResponsiveStyles(screenWidth, screenHeight);
   
   return StyleSheet.create({
@@ -518,8 +485,6 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number)
       minHeight: 150,
     },
     leftSection: {
-      width: sideWidth,
-      height: '100%',
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -531,8 +496,6 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number)
       paddingHorizontal: responsive.centerPaddingHorizontal,
     },
     rightSection: {
-      width: sideWidth,
-      height: '100%',
       justifyContent: 'center',
       alignItems: 'center',
     },

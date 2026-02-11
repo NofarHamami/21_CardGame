@@ -188,7 +188,10 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     backgroundColor: `${colors.muted}33`,
     borderRadius: 12,
     marginHorizontal: isSmallScreen ? 2 : 5,
-    maxWidth: '100%',
+    width: 316,
+    height: 296,
+    flexDirection: 'column',
+    overflow: 'hidden',
   },
   currentPlayerContainer: {
     backgroundColor: `${colors.muted}4D`,
