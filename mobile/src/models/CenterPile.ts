@@ -1,5 +1,6 @@
 import { Card, isCardKing, isCardAce, getCardValue } from './Card';
 import { Rank, getRankSymbol } from './types';
+import { logger } from '../utils/logger';
 
 /**
  * Represents one of the 4 center piles where cards are played.
@@ -30,23 +31,23 @@ export function createCenterPile(): CenterPile {
 export function canPlaceOnPile(pile: CenterPile, card: Card): boolean {
   // If pile is complete (has Queen or reached end), can't add more
   if (isPileComplete(pile)) {
-    console.log('canPlaceOnPile: pile is complete, returning false');
+    logger.debug('canPlaceOnPile: pile is complete, returning false');
     return false;
   }
 
   // King is wild - can be placed on ANY pile at ANY time (including to start)
   const isKing = isCardKing(card);
   const cardRank = card.rank;
-  console.log('canPlaceOnPile: card rank =', cardRank, 'isKing =', isKing);
+  logger.debug('canPlaceOnPile: card rank =', cardRank, 'isKing =', isKing);
   if (isKing) {
-    console.log('canPlaceOnPile: King detected, returning true');
+    logger.debug('canPlaceOnPile: King detected, returning true');
     return true;
   }
 
   // If pile is empty, only Ace can start
   if (pile.cards.length === 0) {
     const isAce = isCardAce(card);
-    console.log('canPlaceOnPile: pile empty, isAce =', isAce);
+    logger.debug('canPlaceOnPile: pile empty, isAce =', isAce);
     return isAce;
   }
 
@@ -55,9 +56,9 @@ export function canPlaceOnPile(pile: CenterPile, card: Card): boolean {
   const topCard = pile.cards.length > 0 ? pile.cards[pile.cards.length - 1] : null;
   const topCardIsKing = topCard ? isCardKing(topCard) : false;
   const matches = cardValue === pile.expectedNextValue;
-  console.log('canPlaceOnPile: cardValue =', cardValue, 'expected =', pile.expectedNextValue, 'pile cards =', pile.cards.length, 'topCardIsKing =', topCardIsKing, 'matches =', matches);
+  logger.debug('canPlaceOnPile: cardValue =', cardValue, 'expected =', pile.expectedNextValue, 'pile cards =', pile.cards.length, 'topCardIsKing =', topCardIsKing, 'matches =', matches);
   if (!matches) {
-    console.log('canPlaceOnPile: MISMATCH - trying to place', cardValue, 'but pile expects', pile.expectedNextValue);
+    logger.debug('canPlaceOnPile: MISMATCH - trying to place', cardValue, 'but pile expects', pile.expectedNextValue);
   }
   return matches;
 }
@@ -80,10 +81,10 @@ export function placeOnPile(pile: CenterPile, card: Card): [boolean, CenterPile]
     // King acts as the expected value, so next value increments
     // If pile was empty (expectedNextValue = 1 for Ace), King acts as Ace (1), so next is 2
     newExpectedValue = pile.expectedNextValue + 1;
-    console.log('placeOnPile: King placed - old expected:', pile.expectedNextValue, 'new expected:', newExpectedValue);
+    logger.debug('placeOnPile: King placed - old expected:', pile.expectedNextValue, 'new expected:', newExpectedValue);
   } else {
     newExpectedValue = getCardValue(card) + 1;
-    console.log('placeOnPile: Non-King placed - card value:', getCardValue(card), 'new expected:', newExpectedValue);
+    logger.debug('placeOnPile: Non-King placed - card value:', getCardValue(card), 'new expected:', newExpectedValue);
   }
 
   return [true, { cards: newCards, expectedNextValue: newExpectedValue }];

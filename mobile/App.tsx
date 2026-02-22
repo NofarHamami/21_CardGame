@@ -9,23 +9,20 @@ import { GameScreen } from './src/screens/GameScreen';
 import { PlayerSetupScreen } from './src/screens/PlayerSetupScreen';
 import { ScoreboardScreen } from './src/screens/ScoreboardScreen';
 import { WaitingRoomScreen } from './src/screens/WaitingRoomScreen';
+import { StatsScreen } from './src/screens/StatsScreen';
 
-// Define the navigation param list
 export type RootStackParamList = {
   Home: undefined;
   PlayerSetup: { gameMode: 'practice' | 'private' | 'random'; numPlayers: number };
-  Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' | 'random' };
+  Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' | 'random'; resumeState?: string };
   Scoreboard: { players: Array<{ name: string; avatar?: string; score: number }> };
   WaitingRoom: { gameMode: 'random'; numPlayers: number; playerName: string; playerAvatar: string };
+  Stats: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
-  React.useEffect(() => {
-    console.log('App component mounted');
-  }, []);
-
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -86,6 +83,14 @@ export default function App() {
               title: 'חדר המתנה',
               headerBackVisible: false,
               gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
+            name="Stats"
+            component={StatsScreen}
+            options={{
+              title: 'Statistics',
+              headerBackTitle: 'Back',
             }}
           />
         </Stack.Navigator>

@@ -17,16 +17,17 @@ export const STORAGE_STACKS = 5;
 export interface Player {
   readonly name: string;
   readonly playerNumber: number;
-  readonly avatar?: string; // Emoji avatar for the player
+  readonly avatar?: string;
+  readonly isAI?: boolean;
   hand: Card[];
-  personalPile: Card[]; // Array used as stack (end = top)
-  storage: Card[][]; // 5 storage stacks
+  personalPile: Card[];
+  storage: Card[][];
 }
 
 /**
  * Create a new player
  */
-export function createPlayer(name: string, playerNumber: number, avatar?: string): Player {
+export function createPlayer(name: string, playerNumber: number, avatar?: string, isAI?: boolean): Player {
   const storage: Card[][] = [];
   for (let i = 0; i < STORAGE_STACKS; i++) {
     storage.push([]);
@@ -35,6 +36,7 @@ export function createPlayer(name: string, playerNumber: number, avatar?: string
     name,
     playerNumber,
     avatar,
+    isAI: isAI ?? false,
     hand: [],
     personalPile: [],
     storage,

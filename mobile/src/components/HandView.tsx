@@ -14,6 +14,7 @@ import {
   DEFAULTS,
 } from '../constants';
 import { MAX_HAND_SIZE } from '../models/Player';
+import { logger } from '../utils/logger';
 
 interface HandViewProps {
   cards: Card[];
@@ -77,13 +78,13 @@ export function HandView({
         // But initialize prevCardsRef to empty so we can detect new cards
         prevCardsRef.current = [];
         prevHandSizeRef.current = 0;
-        console.log('HandView: First render - newlyDrawnCards provided, will detect new cards');
+        logger.debug('HandView: First render - newlyDrawnCards provided, will detect new cards');
         // Continue to the newlyDrawnCards logic below
       } else if (isFirstTimeSeeingPlayer && cards.length > 0) {
         // First time seeing this player - set prevCardsRef to empty so all cards are detected as new
         prevCardsRef.current = [];
         prevHandSizeRef.current = 0;
-        console.log('HandView: First render - first time seeing player', playerName, '- will detect all', cards.length, 'cards as new');
+        logger.debug('HandView: First render - first time seeing player', playerName, '- will detect all', cards.length, 'cards as new');
         // Don't return here - continue to detect new cards
       } else {
         // True first render of component with no player context or player already seen
@@ -97,7 +98,7 @@ export function HandView({
         if (playerName) {
           playerCardsRef.current.set(playerName, [...cards]);
         }
-        console.log('HandView: First render - initialized with', cards.length, 'cards, no animation');
+        logger.debug('HandView: First render - initialized with', cards.length, 'cards, no animation');
         return emptySet;
       }
     }
@@ -106,7 +107,7 @@ export function HandView({
     // This allows us to detect only NEW cards drawn from stock
     if (playerChanged && playerName) {
       const savedCards = playerCardsRef.current.get(playerName) || [];
-      console.log('HandView: Player changed - restoring saved cards:', {
+      logger.debug('HandView: Player changed - restoring saved cards:', {
         prevPlayerName,
         currentPlayerName: playerName,
         savedCards: savedCards.length,
@@ -129,14 +130,14 @@ export function HandView({
         // This way, all current cards will be detected as new
         prevCardsRef.current = [];
         prevHandSizeRef.current = 0;
-        console.log('HandView: First time seeing this player, setting prevCardsRef to empty to detect all cards as new');
+        logger.debug('HandView: First time seeing this player, setting prevCardsRef to empty to detect all cards as new');
       } else {
         // Restore this player's previous cards (existing cards)
         // Use existingCards if they exist, otherwise use savedCards
         // This ensures prevCardsRef contains the cards that were actually in the hand before
         prevCardsRef.current = existingCards.length > 0 ? [...existingCards] : [...savedCards];
         prevHandSizeRef.current = prevCardsRef.current.length;
-        console.log('HandView: Restored this player\'s previous cards:', {
+        logger.debug('HandView: Restored this player\'s previous cards:', {
           existingCards: existingCards.length,
           savedCards: savedCards.length,
           prevCards: prevCardsRef.current.length,
@@ -146,7 +147,7 @@ export function HandView({
         });
       }
       
-      console.log('HandView: Restored cards:', {
+      logger.debug('HandView: Restored cards:', {
         existingCards: existingCards.length,
         prevCards: prevCardsRef.current.length,
         existingCardIds: existingCards.map(c => c.id),
@@ -166,7 +167,7 @@ export function HandView({
         if (existingCards.length > 0) {
           prevCardsRef.current = [...existingCards];
           prevHandSizeRef.current = prevCardsRef.current.length;
-          console.log('HandView: Updated prevCardsRef from savedCards (no player change):', {
+          logger.debug('HandView: Updated prevCardsRef from savedCards (no player change):', {
             existingCards: existingCards.length,
             savedCards: savedCards.length,
             prevCards: prevCardsRef.current.length,
@@ -204,7 +205,7 @@ export function HandView({
         }
         // All other cards are existing - they will NOT be in newIds, so they'll render immediately
       });
-      console.log('HandView: useMemo - Using newlyDrawnCards prop - only animating newly drawn cards:', {
+      logger.debug('HandView: useMemo - Using newlyDrawnCards prop - only animating newly drawn cards:', {
         newlyDrawnCards: newlyDrawnCards.length,
         currentCards: cards.length,
         existingCards: cards.length - newlyDrawnCards.length,
@@ -248,7 +249,7 @@ export function HandView({
         // Cards that ARE in existingCardIds are existing - they will NOT be in newIds
         // This means they will be rendered with static values (no animation)
       });
-      console.log('HandView: useMemo - Has savedCards for player', playerName, '- only animating NEW cards:', {
+      logger.debug('HandView: useMemo - Has savedCards for player', playerName, '- only animating NEW cards:', {
         savedCards: savedCardsForPlayer.length,
         currentCards: cards.length,
         existingCards: cards.filter(c => existingCardIds.has(c.id)).length,
@@ -276,7 +277,7 @@ export function HandView({
         // Always save, not just when changed - this ensures consistency
         playerCardsRef.current.set(playerName, [...cards]);
         const currentSavedCards = playerCardsRef.current.get(playerName) || [];
-        console.log(`HandView: useMemo - Saved cards for player ${playerName} at end of useMemo:`, {
+        logger.debug(`HandView: useMemo - Saved cards for player ${playerName} at end of useMemo:`, {
           previousCount: currentSavedCards.length,
           currentCount: cards.length,
           cardIds: cards.map(c => c.id),
@@ -303,7 +304,7 @@ export function HandView({
         // Cards that ARE in existingCardIds are existing - they will NOT be in newIds
         // This means they will be rendered with static values (no animation)
       });
-      console.log('HandView: useMemo - Has savedCards for player', playerName, '- only animating NEW cards:', {
+      logger.debug('HandView: useMemo - Has savedCards for player', playerName, '- only animating NEW cards:', {
         savedCards: savedCardsForPlayer.length,
         currentCards: cards.length,
         existingCards: cards.filter(c => existingCardIds.has(c.id)).length,
@@ -331,7 +332,7 @@ export function HandView({
         // Always save, not just when changed - this ensures consistency
         playerCardsRef.current.set(playerName, [...cards]);
         const currentSavedCards = playerCardsRef.current.get(playerName) || [];
-        console.log(`HandView: useMemo - Saved cards for player ${playerName} at end of useMemo:`, {
+        logger.debug(`HandView: useMemo - Saved cards for player ${playerName} at end of useMemo:`, {
           previousCount: currentSavedCards.length,
           currentCount: cards.length,
           cardIds: cards.map(c => c.id),
@@ -351,7 +352,7 @@ export function HandView({
     if (isFirstTimeSeeingPlayer && prevCardsRef.current.length === 0 && cards.length > 0) {
       // First time seeing this player AND no saved cards - animate all cards as new
       cards.forEach(card => newIds.add(card.id));
-      console.log('HandView: useMemo - First time seeing player', playerName, '- animating all', cards.length, 'cards (no saved cards):', {
+      logger.debug('HandView: useMemo - First time seeing player', playerName, '- animating all', cards.length, 'cards (no saved cards):', {
         isFirstTimeSeeingPlayer,
         hasSavedCardsForPlayer,
         prevCards: prevCardsRef.current.length,
@@ -363,7 +364,7 @@ export function HandView({
     } else if (playerChanged && prevCardsRef.current.length === 0 && cards.length > 0) {
       // Player changed and first time seeing this player (no saved cards) - animate all cards
       cards.forEach(card => newIds.add(card.id));
-      console.log('HandView: useMemo - Player changed, first time seeing this player (no saved cards) - animating all cards:', {
+      logger.debug('HandView: useMemo - Player changed, first time seeing this player (no saved cards) - animating all cards:', {
         playerChanged,
         hasSavedCardsForPlayer,
         prevCards: prevCardsRef.current.length,
@@ -374,7 +375,7 @@ export function HandView({
       });
     } else if (prevCardsRef.current.length === 0 && !playerChanged && !isFirstTimeSeeingPlayer) {
       // First render (not a player change and not first time seeing player) - don't animate
-      console.log('HandView: useMemo - First render (not player change, player already seen), prevCards is empty, no animation');
+      logger.debug('HandView: useMemo - First render (not player change, player already seen), prevCards is empty, no animation');
       const emptySet = new Set<string>();
       newCardIdsRef.current = emptySet;
       setNewCardIdsState(emptySet);
@@ -382,7 +383,7 @@ export function HandView({
     } else if (newCardsById.length > 0) {
       // Found new cards by ID comparison - these are truly new
       newCardsById.forEach(card => newIds.add(card.id));
-      console.log('HandView: useMemo - Found new cards by ID comparison:', {
+      logger.debug('HandView: useMemo - Found new cards by ID comparison:', {
         newCardsById: newCardsById.length,
         newCardIds: Array.from(newIds),
         prevCards: prevCardsRef.current.length,
@@ -392,7 +393,7 @@ export function HandView({
       });
     } else {
       // No new cards detected by ID comparison
-      console.log('HandView: useMemo - No new cards detected:', {
+      logger.debug('HandView: useMemo - No new cards detected:', {
         prevCards: prevCardsRef.current.length,
         currentCards: cards.length,
         handSizeIncreased: currentHandSize > prevHandSizeRef.current,
@@ -415,7 +416,7 @@ export function HandView({
       // Always save, not just when changed - this ensures consistency
       playerCardsRef.current.set(playerName, [...cards]);
       const currentSavedCards = playerCardsRef.current.get(playerName) || [];
-      console.log(`HandView: useMemo - Saved cards for player ${playerName} at end of useMemo:`, {
+      logger.debug(`HandView: useMemo - Saved cards for player ${playerName} at end of useMemo:`, {
         previousCount: currentSavedCards.length,
         currentCount: cards.length,
         cardIds: cards.map(c => c.id),
@@ -441,7 +442,7 @@ export function HandView({
     const cardsToAnimate = cards.filter(card => newCardIds.has(card.id));
     const existingCards = cards.filter(card => !newCardIds.has(card.id));
     
-    console.log('HandView: useLayoutEffect - Processing cards:', {
+    logger.debug('HandView: useLayoutEffect - Processing cards:', {
       prevSize: prevHandSize,
       currentSize: currentHandSize,
       numNewCards: currentHandSize - prevHandSize,
@@ -460,7 +461,7 @@ export function HandView({
         animValue.stopAnimation();
         // Set to 1 immediately (fully visible) - this ensures no animation
         animValue.setValue(1);
-        console.log(`HandView: useLayoutEffect - Stopped animation and set to 1 for EXISTING card ${card.id}`);
+        logger.debug(`HandView: useLayoutEffect - Stopped animation and set to 1 for EXISTING card ${card.id}`);
       }
     });
     
@@ -470,11 +471,11 @@ export function HandView({
       if (!animValue) {
         animValue = new Animated.Value(0);
         cardAnimationsRef.current.set(card.id, animValue);
-        console.log(`HandView: useLayoutEffect - Created animation value for NEW card ${card.id}, starting at 0`);
+        logger.debug(`HandView: useLayoutEffect - Created animation value for NEW card ${card.id}, starting at 0`);
       } else {
         animValue.stopAnimation();
         animValue.setValue(0);
-        console.log(`HandView: useLayoutEffect - Set animation value to 0 for NEW card ${card.id}`);
+        logger.debug(`HandView: useLayoutEffect - Set animation value to 0 for NEW card ${card.id}`);
       }
     });
   }, [cards, newCardIds]);
@@ -487,7 +488,7 @@ export function HandView({
     // Determine which cards to animate - use the IDs from useMemo
     const cardsToAnimate = cards.filter(card => newCardIds.has(card.id));
     
-    console.log('HandView: useEffect - Processing cards:', {
+    logger.debug('HandView: useEffect - Processing cards:', {
       prevSize: prevHandSize,
       currentSize: currentHandSize,
       numNewCards: currentHandSize - prevHandSize,
@@ -508,12 +509,12 @@ export function HandView({
         if (!cardAnimationsRef.current.has(card.id)) {
           const animValue = new Animated.Value(0);
           cardAnimationsRef.current.set(card.id, animValue);
-          console.log(`HandView: Created animation value for NEW card ${card.id}, starting at 0`);
+          logger.debug(`HandView: Created animation value for NEW card ${card.id}, starting at 0`);
         } else {
           const animValue = cardAnimationsRef.current.get(card.id)!;
           animValue.stopAnimation();
           animValue.setValue(0);
-          console.log(`HandView: Reset animation value to 0 for NEW card ${card.id}`);
+          logger.debug(`HandView: Reset animation value to 0 for NEW card ${card.id}`);
         }
       } else {
         // EXISTING CARD: Stop any animation and ensure value is 1, or remove from map
@@ -521,7 +522,7 @@ export function HandView({
         if (animValue) {
           animValue.stopAnimation();
           animValue.setValue(1);
-          console.log(`HandView: Stopped animation and set to 1 for EXISTING card ${card.id}`);
+          logger.debug(`HandView: Stopped animation and set to 1 for EXISTING card ${card.id}`);
         }
         // Note: We don't remove from map because we might need it later, but we ensure it's at 1
       }
@@ -529,8 +530,8 @@ export function HandView({
 
     // Animate ONLY newly added cards with initial delay, staggered timing and scale effect
     if (cardsToAnimate.length > 0) {
-      console.log('HandView: Starting animation for', cardsToAnimate.length, 'new cards');
-      console.log('HandView: New card IDs:', cardsToAnimate.map(c => c.id));
+      logger.debug('HandView: Starting animation for', cardsToAnimate.length, 'new cards');
+      logger.debug('HandView: New card IDs:', cardsToAnimate.map(c => c.id));
       
       // Ensure all new cards start invisible BEFORE starting animation
       cardsToAnimate.forEach(card => {
@@ -538,10 +539,10 @@ export function HandView({
         if (!animValue) {
           animValue = new Animated.Value(0);
           cardAnimationsRef.current.set(card.id, animValue);
-          console.log(`HandView: Created animation value for card ${card.id}`);
+          logger.debug(`HandView: Created animation value for card ${card.id}`);
         }
         animValue.setValue(0);
-        console.log(`HandView: Set animation value to 0 for card ${card.id}`);
+        logger.debug(`HandView: Set animation value to 0 for card ${card.id}`);
       });
       
       // Force a re-render to show hidden cards, then start animations
@@ -551,25 +552,25 @@ export function HandView({
           const initialDelay = 200;
           const animationDuration = 900;
           
-          console.log('HandView: Starting animations for', cardsToAnimate.length, 'cards');
+          logger.debug('HandView: Starting animations for', cardsToAnimate.length, 'cards');
           
           cardsToAnimate.forEach((card, index) => {
             const animValue = cardAnimationsRef.current.get(card.id);
             if (!animValue) {
-              console.error('HandView: ERROR - Animation value not found for card', card.id);
+              logger.error('HandView: ERROR - Animation value not found for card', card.id);
               return;
             }
             
             // Ensure NEW card starts invisible
             animValue.setValue(0);
-            console.log(`HandView: Starting animation for card ${card.id} at index ${index}`);
+            logger.debug(`HandView: Starting animation for card ${card.id} at index ${index}`);
             
             // Stagger animations: each card starts 150ms after the previous one
             // This creates a clear "drawing" effect
             const staggerDelay = index * 150;
             const totalDelay = initialDelay + staggerDelay;
             
-            console.log(`HandView: Scheduling animation for card ${card.id} with delay ${totalDelay}ms`);
+            logger.debug(`HandView: Scheduling animation for card ${card.id} with delay ${totalDelay}ms`);
             
             Animated.sequence([
               Animated.delay(totalDelay),
@@ -581,7 +582,7 @@ export function HandView({
                 }),
               ]),
             ]).start((finished) => {
-              console.log(`HandView: Animation ${finished ? 'completed' : 'cancelled'} for card ${card.id}`);
+              logger.debug(`HandView: Animation ${finished ? 'completed' : 'cancelled'} for card ${card.id}`);
               if (finished) {
                 // After animation completes, remove card from new cards set
                 // This ensures it won't be animated again
@@ -598,7 +599,7 @@ export function HandView({
       });
     } else {
       // No new cards to animate - clear the set
-      console.log('HandView: No cards to animate');
+      logger.debug('HandView: No cards to animate');
       newCardIdsRef.current.clear();
       setNewCardIdsState(new Set());
     }
@@ -613,7 +614,7 @@ export function HandView({
         requestAnimationFrame(() => {
           prevCardsRef.current = [...cards];
           prevHandSizeRef.current = currentHandSize;
-          console.log('HandView: Updated prevCardsRef after animation setup:', {
+          logger.debug('HandView: Updated prevCardsRef after animation setup:', {
             newSize: currentHandSize,
             prevSize: prevHandSize,
             newCardIds: cardsToAnimate.map(c => c.id),
@@ -629,7 +630,7 @@ export function HandView({
       // Cards changed but no animation - update immediately
       prevCardsRef.current = [...cards];
       prevHandSizeRef.current = currentHandSize;
-      console.log('HandView: Updated prevCardsRef (no animation):', {
+      logger.debug('HandView: Updated prevCardsRef (no animation):', {
         newSize: currentHandSize,
         prevSize: prevHandSize,
         cardIds: cards.map(c => c.id),
@@ -650,7 +651,7 @@ export function HandView({
       
       if (cardsChanged) {
         playerCardsRef.current.set(playerName, [...cards]);
-        console.log(`HandView: Saved cards for player ${playerName}:`, {
+        logger.debug(`HandView: Saved cards for player ${playerName}:`, {
           cardIds: cards.map(c => c.id),
           count: cards.length,
           savedAt: 'after processing',
@@ -742,7 +743,7 @@ export function HandView({
               animValue.stopAnimation();
               // Force to 1 (fully visible) immediately
               animValue.setValue(1);
-              console.log(`HandView: Render - Existing card ${card.id}, stopped animation and set to 1`);
+              logger.debug(`HandView: Render - Existing card ${card.id}, stopped animation and set to 1`);
             }
             
             // Use static values - NO animation
@@ -778,7 +779,7 @@ export function HandView({
           }
           
           // From here on, we KNOW this is a new card (isNewCard === true)
-          console.log(`HandView: Render - Card ${card.id} is NEW, will animate`);
+          logger.debug(`HandView: Render - Card ${card.id} is NEW, will animate`);
           
           // This is a NEW card - get or create animation value
           let animValue = cardAnimationsRef.current.get(card.id);
@@ -786,11 +787,11 @@ export function HandView({
             // Create animation value - new cards start at 0 (invisible)
             animValue = new Animated.Value(0);
             cardAnimationsRef.current.set(card.id, animValue);
-            console.log(`HandView: Render - Created animation value for NEW card ${card.id}, starting at 0`);
+            logger.debug(`HandView: Render - Created animation value for NEW card ${card.id}, starting at 0`);
           } else {
             // Ensure it's set to 0 (invisible) for new cards
             animValue.setValue(0);
-            console.log(`HandView: Render - Reset animation value to 0 for NEW card ${card.id}`);
+            logger.debug(`HandView: Render - Reset animation value to 0 for NEW card ${card.id}`);
           }
           
           // NEW CARDS ONLY: Use animated values
@@ -805,7 +806,7 @@ export function HandView({
             outputRange: [0.6, 1.2, 1.05, 1], // Start smaller, pop larger, slight bounce back, then settle
           });
           
-          console.log(`HandView: Render - Rendering NEW card ${card.id}`);
+          logger.debug(`HandView: Render - Rendering NEW card ${card.id}`);
 
           return (
             <Animated.View

@@ -13,8 +13,12 @@ import {
   drawCardFromStockDelayed,
   updatePlayerNameAndAvatar,
 } from '../engine/GameEngine';
+import { findBestMove, executeAIMove } from '../engine/AIPlayer';
 import { NUM_CENTER_PILES } from '../constants';
 import { CardSource, Card, Player, CenterPile } from '../models';
+import { logger } from '../utils/logger';
+import { saveGame, clearSavedGame } from '../utils/gameSave';
+import { playCardTapSound, playCardPlaySound, playInvalidMoveSound, playPileCompleteSound } from '../utils/sounds';
 
 /**
  * Selected card state
@@ -29,34 +33,23 @@ export interface SelectedCard {
  * Hook return type
  */
 export interface UseGameEngineReturn {
-  // Game state
   gameState: GameState;
   currentPlayer: Player | null;
   isGameStarted: boolean;
   isGameOver: boolean;
   winner: Player | null;
-  
-  // Players
   players: Player[];
   currentPlayerIndex: number;
-  
-  // Center piles
   centerPiles: CenterPile[];
   stockPileSize: number;
-  
-  // Turn info
   cardsPlayedThisTurn: number;
   canEndCurrentTurn: boolean;
   playedToCenterThisTurn: boolean;
-  
-  // Last event
   lastEvent: GameEvent | null;
-  
-  // Selected card
   selectedCard: SelectedCard | null;
-  
-  // Actions
-  startGame: (numPlayers: number, playerConfigs?: Array<{ name: string; avatar?: string }>) => void;
+  turnCount: number;
+
+  startGame: (numPlayers: number, playerConfigs?: Array<{ name: string; avatar?: string; isAI?: boolean }>) => void;
   selectCard: (card: Card, source: CardSource, sourceIndex: number) => void;
   clearSelection: () => void;
   playSelectedToCenter: (centerPileIndex: number) => boolean;
@@ -64,6 +57,7 @@ export interface UseGameEngineReturn {
   endCurrentTurn: () => boolean;
   resetGame: () => void;
   updatePlayerNameAndAvatar: (playerIndex: number, name: string, avatar?: string) => void;
+  loadState: (state: GameState) => void;
 }
 
 /**
@@ -72,59 +66,50 @@ export interface UseGameEngineReturn {
 export function useGameEngine(): UseGameEngineReturn {
   const [gameState, setGameState] = useState<GameState>(createInitialState);
   const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
+  const [turnCount, setTurnCount] = useState(0);
   const delayedDrawTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const prevPlayerIndexRef = useRef<number>(-1);
+  const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const gameModeRef = useRef<string>('practice');
 
-  // Debug: Log state changes
-  React.useEffect(() => {
-    console.log('useGameEngine: gameState changed - currentPlayerIndex:', gameState.currentPlayerIndex, 'currentPlayer:', getCurrentPlayer(gameState)?.name);
+  useEffect(() => {
+    logger.debug('useGameEngine: currentPlayerIndex:', gameState.currentPlayerIndex, 'player:', getCurrentPlayer(gameState)?.name);
   }, [gameState.currentPlayerIndex, gameState.players]);
 
-  // Debug: Log selected card changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedCard) {
-      console.log('useGameEngine: Card selected - rank:', selectedCard.card.rank, 'source:', selectedCard.source, 'index:', selectedCard.sourceIndex);
-    } else {
-      console.log('useGameEngine: Card selection cleared');
+      logger.debug('useGameEngine: Card selected -', selectedCard.card.rank, selectedCard.source, selectedCard.sourceIndex);
     }
   }, [selectedCard]);
 
-  // Handle delayed card drawing for all players
+  // Delayed card drawing
   useEffect(() => {
-    // Clear any existing timeout
     if (delayedDrawTimeoutRef.current) {
       clearTimeout(delayedDrawTimeoutRef.current);
       delayedDrawTimeoutRef.current = null;
     }
 
-    // Only handle delayed drawing if game is started and not over
-    if (!gameState.gameStarted || gameState.gameOver) {
-      return;
-    }
+    if (!gameState.gameStarted || gameState.gameOver) return;
 
     const currentPlayerIndex = gameState.currentPlayerIndex;
     const playerChanged = prevPlayerIndexRef.current !== currentPlayerIndex;
     prevPlayerIndexRef.current = currentPlayerIndex;
 
-    // Apply delayed drawing for all players when their turn starts
     if (playerChanged && currentPlayerIndex >= 0 && currentPlayerIndex < gameState.players.length) {
       const currentPlayer = gameState.players[currentPlayerIndex];
       if (currentPlayer && currentPlayer.hand.length < 5) {
-        console.log(`useGameEngine: Player ${currentPlayerIndex + 1} (${currentPlayer.name}) turn started, scheduling delayed card draw in 2 seconds`);
-        
-        // Draw cards after 0.5 seconds
+        logger.debug(`useGameEngine: Scheduling delayed draw for ${currentPlayer.name}`);
         delayedDrawTimeoutRef.current = setTimeout(() => {
-          console.log(`useGameEngine: Executing delayed card draw for player ${currentPlayerIndex + 1}`);
-          setGameState(prevState => {
-            const newState = drawCardFromStockDelayed(prevState, currentPlayerIndex);
-            return newState;
-          });
+          setGameState(prevState => drawCardFromStockDelayed(prevState, currentPlayerIndex));
           delayedDrawTimeoutRef.current = null;
         }, 500);
       }
+
+      if (playerChanged) {
+        setTurnCount(c => c + 1);
+      }
     }
 
-    // Cleanup timeout on unmount or when dependencies change
     return () => {
       if (delayedDrawTimeoutRef.current) {
         clearTimeout(delayedDrawTimeoutRef.current);
@@ -133,57 +118,128 @@ export function useGameEngine(): UseGameEngineReturn {
     };
   }, [gameState.currentPlayerIndex, gameState.gameStarted, gameState.gameOver, gameState.players]);
 
-  // Derived state
+  // AI turn logic
+  useEffect(() => {
+    if (!gameState.gameStarted || gameState.gameOver) return;
+
+    const current = gameState.players[gameState.currentPlayerIndex];
+    if (!current?.isAI) return;
+
+    // Clear any existing AI timeout
+    if (aiTimeoutRef.current) {
+      clearTimeout(aiTimeoutRef.current);
+    }
+
+    const executeNextAIMove = () => {
+      setGameState(prevState => {
+        const player = prevState.players[prevState.currentPlayerIndex];
+        if (!player?.isAI || prevState.gameOver) return prevState;
+
+        const move = findBestMove(prevState);
+        if (!move) {
+          logger.debug('AI: No move found, stuck');
+          return prevState;
+        }
+
+        logger.debug('AI: Executing move', move.type);
+        const newState = executeAIMove(prevState, move);
+
+        // If still AI's turn, schedule next move
+        const stillAITurn =
+          !newState.gameOver &&
+          newState.currentPlayerIndex === prevState.currentPlayerIndex &&
+          move.type !== 'endTurn' &&
+          move.type !== 'storage';
+
+        if (stillAITurn) {
+          aiTimeoutRef.current = setTimeout(executeNextAIMove, 600);
+        }
+
+        return newState;
+      });
+    };
+
+    // Initial delay before AI starts playing
+    aiTimeoutRef.current = setTimeout(executeNextAIMove, 1200);
+
+    return () => {
+      if (aiTimeoutRef.current) {
+        clearTimeout(aiTimeoutRef.current);
+        aiTimeoutRef.current = null;
+      }
+    };
+  }, [gameState.currentPlayerIndex, gameState.gameStarted, gameState.gameOver]);
+
+  // Auto-save game state on turn changes
+  useEffect(() => {
+    if (gameState.gameStarted && !gameState.gameOver) {
+      saveGame(gameState, gameModeRef.current);
+    }
+    if (gameState.gameOver) {
+      clearSavedGame();
+    }
+  }, [gameState.currentPlayerIndex, gameState.gameOver]);
+
+  // Sound effects on events
+  useEffect(() => {
+    if (!gameState.lastEvent) return;
+    switch (gameState.lastEvent.type) {
+      case 'CARD_PLAYED':
+        playCardPlaySound();
+        break;
+      case 'PILE_COMPLETED':
+        playPileCompleteSound();
+        break;
+      case 'INVALID_MOVE':
+        playInvalidMoveSound();
+        break;
+    }
+  }, [gameState.lastEvent]);
+
   const currentPlayer = useMemo(() => getCurrentPlayer(gameState), [gameState]);
   const stockPileSize = useMemo(() => getStockPileSize(gameState), [gameState]);
   const canEndCurrentTurn = useMemo(() => canEndTurn(gameState), [gameState]);
 
-  // Start a new game
-  const startGame = useCallback((numPlayers: number, playerConfigs?: Array<{ name: string; avatar?: string }>) => {
+  const startGame = useCallback((numPlayers: number, playerConfigs?: Array<{ name: string; avatar?: string; isAI?: boolean }>) => {
     try {
-      console.log('Starting game with', numPlayers, 'players');
+      logger.debug('Starting game with', numPlayers, 'players');
       const newState = setupGame(numPlayers, playerConfigs);
-      console.log('Game setup complete, gameStarted:', newState.gameStarted, 'players:', newState.players.length);
       setGameState(newState);
       setSelectedCard(null);
+      setTurnCount(0);
     } catch (error) {
-      console.error('Error in startGame:', error);
+      logger.error('Error in startGame:', error);
       throw error;
     }
   }, []);
 
-  // Reset game to initial state
   const resetGame = useCallback(() => {
-    // Clear any pending delayed draw timeout
     if (delayedDrawTimeoutRef.current) {
       clearTimeout(delayedDrawTimeoutRef.current);
       delayedDrawTimeoutRef.current = null;
     }
+    if (aiTimeoutRef.current) {
+      clearTimeout(aiTimeoutRef.current);
+      aiTimeoutRef.current = null;
+    }
+    clearSavedGame();
     setGameState(createInitialState());
     setSelectedCard(null);
+    setTurnCount(0);
     prevPlayerIndexRef.current = -1;
   }, []);
 
-  // Select a card
   const selectCard = useCallback((card: Card, source: CardSource, sourceIndex: number) => {
-    console.log('selectCard: Selecting card:', card.rank, 'from source:', source, 'index:', sourceIndex);
+    playCardTapSound();
     setSelectedCard({ card, source, sourceIndex });
   }, []);
 
-  // Clear selection
   const clearSelection = useCallback(() => {
     setSelectedCard(null);
   }, []);
 
-  // Play selected card to center pile
   const playSelectedToCenter = useCallback((centerPileIndex: number): boolean => {
-    if (!selectedCard) {
-      console.log('playSelectedToCenter: No card selected');
-      return false;
-    }
-
-    console.log('playSelectedToCenter: Attempting to play card:', selectedCard.card.rank, 'from source:', selectedCard.source, 'to pile:', centerPileIndex);
-    console.log('playSelectedToCenter: Current pile state before play:', gameState.centerPiles[centerPileIndex]?.expectedNextValue, 'cards:', gameState.centerPiles[centerPileIndex]?.cards.length);
+    if (!selectedCard) return false;
 
     const newState = playToCenter(
       gameState,
@@ -192,26 +248,15 @@ export function useGameEngine(): UseGameEngineReturn {
       centerPileIndex
     );
 
-    // Check if move was successful (no INVALID_MOVE event)
     const success = newState.lastEvent?.type !== 'INVALID_MOVE';
-    console.log('playSelectedToCenter: Move success:', success, 'event type:', newState.lastEvent?.type);
-    if (!success && newState.lastEvent?.type === 'INVALID_MOVE') {
-      console.log('playSelectedToCenter: Error message:', newState.lastEvent.message);
-    }
-    
     setGameState(newState);
-    if (success) {
-      setSelectedCard(null);
-    }
-    
+    if (success) setSelectedCard(null);
     return success;
   }, [gameState, selectedCard]);
 
-  // Play selected card to storage
   const playSelectedToStorage = useCallback((storageIndex: number): boolean => {
     if (!selectedCard) return false;
 
-    console.log('playSelectedToStorage called - currentPlayerIndex:', gameState.currentPlayerIndex, 'storageIndex:', storageIndex);
     const newState = playToStorage(
       gameState,
       selectedCard.source,
@@ -219,72 +264,46 @@ export function useGameEngine(): UseGameEngineReturn {
       storageIndex
     );
 
-    // Check if move was successful
     const success = newState.lastEvent?.type !== 'INVALID_MOVE';
-    console.log('playSelectedToStorage result - success:', success, 'newPlayerIndex:', newState.currentPlayerIndex, 'event:', newState.lastEvent?.type);
-    
     setGameState(newState);
-    if (success) {
-      setSelectedCard(null);
-    }
-    
+    if (success) setSelectedCard(null);
     return success;
   }, [gameState, selectedCard]);
 
-  // End current turn
   const endCurrentTurn = useCallback((): boolean => {
-    console.log('endCurrentTurn called - currentPlayerIndex:', gameState.currentPlayerIndex, 'cardsPlayedThisTurn:', gameState.cardsPlayedThisTurn);
     const newState = endTurn(gameState);
     const success = newState.lastEvent?.type !== 'INVALID_MOVE';
-    
-    console.log('endTurn result - success:', success, 'newPlayerIndex:', newState.currentPlayerIndex, 'event:', newState.lastEvent?.type);
-    
     setGameState(newState);
-    if (success) {
-      setSelectedCard(null);
-    }
-    
+    if (success) setSelectedCard(null);
     return success;
   }, [gameState]);
 
-  // Update player name and avatar
   const updatePlayerNameAndAvatarCallback = useCallback((playerIndex: number, name: string, avatar?: string) => {
-    console.log('updatePlayerNameAndAvatarCallback called:', { playerIndex, name, avatar });
-    setGameState(prevState => {
-      const newState = updatePlayerNameAndAvatar(prevState, playerIndex, name, avatar);
-      console.log('Updated state - player name:', newState.players[playerIndex]?.name);
-      return newState;
-    });
+    setGameState(prevState => updatePlayerNameAndAvatar(prevState, playerIndex, name, avatar));
+  }, []);
+
+  const loadState = useCallback((state: GameState) => {
+    setGameState(state);
+    setSelectedCard(null);
+    prevPlayerIndexRef.current = state.currentPlayerIndex;
   }, []);
 
   return {
-    // Game state
     gameState,
     currentPlayer,
     isGameStarted: gameState.gameStarted,
     isGameOver: gameState.gameOver,
     winner: gameState.winner,
-    
-    // Players
     players: gameState.players,
     currentPlayerIndex: gameState.currentPlayerIndex,
-    
-    // Center piles
     centerPiles: gameState.centerPiles,
     stockPileSize,
-    
-    // Turn info
     cardsPlayedThisTurn: gameState.cardsPlayedThisTurn,
     canEndCurrentTurn,
     playedToCenterThisTurn: gameState.playedToCenterThisTurn,
-    
-    // Last event
     lastEvent: gameState.lastEvent,
-    
-    // Selected card
     selectedCard,
-    
-    // Actions
+    turnCount,
     startGame,
     selectCard,
     clearSelection,
@@ -293,6 +312,7 @@ export function useGameEngine(): UseGameEngineReturn {
     endCurrentTurn,
     resetGame,
     updatePlayerNameAndAvatar: updatePlayerNameAndAvatarCallback,
+    loadState,
   };
 }
 

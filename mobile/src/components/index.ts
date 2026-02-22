@@ -9,3 +9,5 @@ export { CenterArea } from './CenterArea';
 export { GameBoard } from './GameBoard';
 export { SettingsMenu } from './SettingsMenu';
 export { ErrorBoundary } from './ErrorBoundary';
+export { Tutorial } from './Tutorial';
+export { ConfettiAnimation } from './ConfettiAnimation';

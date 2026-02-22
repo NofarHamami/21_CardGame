@@ -42,6 +42,7 @@ import {
   MAX_PLAYERS,
   DECKS_NEEDED,
 } from '../constants';
+import { logger } from '../utils/logger';
 
 /**
  * Game event types
@@ -116,6 +117,7 @@ export function createInitialState(): GameState {
 export interface PlayerConfig {
   name: string;
   avatar?: string;
+  isAI?: boolean;
 }
 
 /**
@@ -139,10 +141,8 @@ export function setupGame(numPlayers: number, playerConfigs?: PlayerConfig[]): G
   const players: Player[] = [];
   for (let i = 0; i < numPlayers; i++) {
     if (playerConfigs && playerConfigs[i]) {
-      // Use custom name and avatar
-      players.push(createPlayer(playerConfigs[i].name, i + 1, playerConfigs[i].avatar));
+      players.push(createPlayer(playerConfigs[i].name, i + 1, playerConfigs[i].avatar, playerConfigs[i].isAI));
     } else {
-      // Use default name
       players.push(createPlayer(`Player ${i + 1}`, i + 1));
     }
   }
@@ -171,7 +171,7 @@ export function setupGame(numPlayers: number, playerConfigs?: PlayerConfig[]): G
   let startingPlayerIndex = 0;
   let highestValue = -1;
   
-  console.log('Determining starting player...');
+  logger.debug('Determining starting player...');
   for (let i = 0; i < updatedPlayers.length; i++) {
     const player = updatedPlayers[i];
     // Get the top card (first card that was dealt, which is at the last index after reversing)
@@ -181,19 +181,19 @@ export function setupGame(numPlayers: number, playerConfigs?: PlayerConfig[]): G
       
       const cardValue = getCardValue(topCard);
       const isKing = isCardKing(topCard);
-      console.log(`  Player ${i + 1} (${player.name}): top card rank = ${cardValue}, isKing = ${isKing}`);
+      logger.debug(`  Player ${i + 1} (${player.name}): top card rank = ${cardValue}, isKing = ${isKing}`);
       
       // Ignore players whose first card is a King (wild/joker) - they don't participate in starting player determination
       if (!isKing) {
         if (cardValue > highestValue) {
-          console.log(`    -> New highest value: ${cardValue} (was ${highestValue}), setting starting player to ${i + 1}`);
+          logger.debug(`    -> New highest value: ${cardValue} (was ${highestValue}), setting starting player to ${i + 1}`);
           highestValue = cardValue;
           startingPlayerIndex = i;
         } else {
-          console.log(`    -> Value ${cardValue} is not higher than current highest ${highestValue}`);
+          logger.debug(`    -> Value ${cardValue} is not higher than current highest ${highestValue}`);
         }
       } else {
-        console.log(`    -> Skipping (King is wild)`);
+        logger.debug(`    -> Skipping (King is wild)`);
       }
     }
   }
@@ -201,10 +201,10 @@ export function setupGame(numPlayers: number, playerConfigs?: PlayerConfig[]): G
   // If all players have King as first card (shouldn't happen, but fallback)
   // or if no valid starting player was found, default to first player
   if (highestValue === -1) {
-    console.log('No valid starting player found (all Kings?), defaulting to player 1');
+    logger.debug('No valid starting player found (all Kings?), defaulting to player 1');
     startingPlayerIndex = 0;
   } else {
-    console.log(`Starting player determined: Player ${startingPlayerIndex + 1} (${updatedPlayers[startingPlayerIndex].name}) with card value ${highestValue}`);
+    logger.debug(`Starting player determined: Player ${startingPlayerIndex + 1} (${updatedPlayers[startingPlayerIndex].name}) with card value ${highestValue}`);
   }
 
   return {
@@ -402,7 +402,7 @@ function getNextPlayerIndexClockwise(currentIndex: number, numPlayers: number): 
  */
 function nextTurn(state: GameState): GameState {
   const nextPlayerIndex = getNextPlayerIndexClockwise(state.currentPlayerIndex, state.players.length);
-  console.log('nextTurn: moving from player', state.currentPlayerIndex, 'to', nextPlayerIndex, '(clockwise)');
+  logger.debug('nextTurn: moving from player', state.currentPlayerIndex, 'to', nextPlayerIndex, '(clockwise)');
   
   let newState: GameState = {
     ...state,
@@ -415,7 +415,7 @@ function nextTurn(state: GameState): GameState {
   // Cards will be drawn after a delay to show existing cards first
 
   const nextPlayer = newState.players[nextPlayerIndex];
-  console.log('nextTurn: new current player is', nextPlayer.name);
+  logger.debug('nextTurn: new current player is', nextPlayer.name);
   newState = { ...newState, lastEvent: { type: 'TURN_CHANGED', player: nextPlayer } };
 
   return newState;
@@ -446,11 +446,11 @@ export function playToCenter(
 
   const playerIndex = state.currentPlayerIndex;
   let player = state.players[playerIndex];
-  console.log('playToCenter: Getting card from source:', source, 'index:', sourceIndex, 'player:', player.name);
+  logger.debug('playToCenter: Getting card from source:', source, 'index:', sourceIndex, 'player:', player.name);
   const card = getCardFromSource(player, source, sourceIndex);
 
   if (card === null) {
-    console.log('playToCenter: Card is null - cannot retrieve card from source');
+    logger.debug('playToCenter: Card is null - cannot retrieve card from source');
     return {
       ...state,
       lastEvent: {
@@ -459,7 +459,7 @@ export function playToCenter(
       },
     };
   }
-  console.log('playToCenter: Retrieved card:', card.rank, 'suit:', card.suit);
+  logger.debug('playToCenter: Retrieved card:', card.rank, 'suit:', card.suit);
 
   if (centerPileIndex < 0 || centerPileIndex >= NUM_CENTER_PILES) {
     return {
@@ -477,13 +477,13 @@ export function playToCenter(
   const isKing = isCardKing(card);
   const cardValue = getCardValue(card);
   const topCard = pile.cards.length > 0 ? pile.cards[pile.cards.length - 1] : null;
-  console.log('playToCenter: card check - rank:', cardValue, 'isKing:', isKing, 'pile index:', centerPileIndex, 'pile cards:', pile.cards.length, 'pile expected:', pile.expectedNextValue, 'topCard:', topCard ? `${topCard.rank}` : 'none');
+  logger.debug('playToCenter: card check - rank:', cardValue, 'isKing:', isKing, 'pile index:', centerPileIndex, 'pile cards:', pile.cards.length, 'pile expected:', pile.expectedNextValue, 'topCard:', topCard ? `${topCard.rank}` : 'none');
   
   if (!canPlaceOnPile(pile, card)) {
     const expectedRank = getExpectedNextRank(pile);
     const topCard = pile.cards.length > 0 ? pile.cards[pile.cards.length - 1] : null;
     const topCardInfo = topCard ? (isCardKing(topCard) ? 'King (acting as wild)' : `${getCardValue(topCard)}`) : 'empty';
-    console.log('playToCenter: CANNOT place card - isKing:', isKing, 'cardValue:', cardValue, 'pile expected:', pile.expectedNextValue, 'topCard:', topCardInfo, 'canPlaceOnPile returned false');
+    logger.debug('playToCenter: CANNOT place card - isKing:', isKing, 'cardValue:', cardValue, 'pile expected:', pile.expectedNextValue, 'topCard:', topCardInfo, 'canPlaceOnPile returned false');
     return {
       ...state,
       lastEvent: {
@@ -493,7 +493,7 @@ export function playToCenter(
     };
   }
   
-  console.log('playToCenter: CAN place card - proceeding');
+  logger.debug('playToCenter: CAN place card - proceeding');
 
   // Remove card from source
   const [removedCard, updatedPlayer] = removeCardFromSource(player, source, sourceIndex);
@@ -502,14 +502,14 @@ export function playToCenter(
   // Place on center pile
   const [success, updatedPile] = placeOnPile(pile, card);
   pile = updatedPile;
-  console.log('playToCenter: after placeOnPile - pile expectedNextValue:', pile.expectedNextValue, 'cards:', pile.cards.length);
+  logger.debug('playToCenter: after placeOnPile - pile expectedNextValue:', pile.expectedNextValue, 'cards:', pile.cards.length);
 
   // Update state
   let newState = updatePlayer(state, playerIndex, player);
   newState = updateCenterPile(newState, centerPileIndex, pile);
-  console.log('playToCenter: after updateCenterPile - newState pile expectedNextValue:', newState.centerPiles[centerPileIndex].expectedNextValue);
+  logger.debug('playToCenter: after updateCenterPile - newState pile expectedNextValue:', newState.centerPiles[centerPileIndex].expectedNextValue);
   const newCardsPlayed = newState.cardsPlayedThisTurn + 1;
-  console.log('playToCenter: incrementing cardsPlayedThisTurn from', newState.cardsPlayedThisTurn, 'to', newCardsPlayed);
+  logger.debug('playToCenter: incrementing cardsPlayedThisTurn from', newState.cardsPlayedThisTurn, 'to', newCardsPlayed);
   newState = {
     ...newState,
     cardsPlayedThisTurn: newCardsPlayed,
@@ -651,9 +651,9 @@ export function playToStorage(
   }
 
   // Playing to storage ends the turn immediately
-  console.log('playToStorage: calling nextTurn, current index:', newState.currentPlayerIndex, 'players count:', newState.players.length);
+  logger.debug('playToStorage: calling nextTurn, current index:', newState.currentPlayerIndex, 'players count:', newState.players.length);
   const result = nextTurn(newState);
-  console.log('playToStorage: nextTurn returned, new index:', result.currentPlayerIndex, 'new player:', result.players[result.currentPlayerIndex]?.name);
+  logger.debug('playToStorage: nextTurn returned, new index:', result.currentPlayerIndex, 'new player:', result.players[result.currentPlayerIndex]?.name);
   return result;
 }
 
@@ -662,12 +662,12 @@ export function playToStorage(
  */
 export function endTurn(state: GameState): GameState {
   if (!state.gameStarted || state.gameOver) {
-    console.log('endTurn: game not started or game over');
+    logger.debug('endTurn: game not started or game over');
     return state;
   }
 
   const player = state.players[state.currentPlayerIndex];
-  console.log('endTurn: player', player.name, 'cardsPlayedThisTurn:', state.cardsPlayedThisTurn, 'handFull:', isHandFull(player));
+  logger.debug('endTurn: player', player.name, 'cardsPlayedThisTurn:', state.cardsPlayedThisTurn, 'handFull:', isHandFull(player));
 
   if (state.cardsPlayedThisTurn === 0) {
     return {
@@ -689,7 +689,7 @@ export function endTurn(state: GameState): GameState {
     };
   }
 
-  console.log('endTurn: calling nextTurn, current index:', state.currentPlayerIndex);
+  logger.debug('endTurn: calling nextTurn, current index:', state.currentPlayerIndex);
   return nextTurn(state);
 }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card } from '../models';
 import { GameEvent } from '../engine/GameEngine';
+import { logger } from '../utils/logger';
 
 /**
  * Hook to manage stock-to-hand card animation
@@ -13,14 +14,14 @@ export function useStockToHandAnimation(lastEvent: GameEvent | null) {
   // Track HAND_REFILLED events
   useEffect(() => {
     if (lastEvent?.type === 'HAND_REFILLED' && lastEvent.cards && lastEvent.cards.length > 0) {
-      console.log('useStockToHandAnimation: HAND_REFILLED detected, cards:', lastEvent.cards.length);
+      logger.debug('useStockToHandAnimation: HAND_REFILLED detected, cards:', lastEvent.cards.length);
       setCardsToAnimate(lastEvent.cards);
       setIsAnimating(true);
     }
   }, [lastEvent]);
 
   const onAnimationComplete = useCallback(() => {
-    console.log('useStockToHandAnimation: Animation complete');
+    logger.debug('useStockToHandAnimation: Animation complete');
     setIsAnimating(false);
     setCardsToAnimate([]);
   }, []);

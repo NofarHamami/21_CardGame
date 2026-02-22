@@ -3,6 +3,7 @@ import { View, Animated, StyleSheet, Dimensions, Easing } from 'react-native';
 import { Card } from '../models';
 import CardView from './CardView';
 import { CARD_DIMENSIONS } from '../constants';
+import { logger } from '../utils/logger';
 import { colors, withOpacity, opacity } from '../theme/colors';
 
 interface StockToHandAnimationProps {
@@ -86,7 +87,7 @@ export function StockToHandAnimation({
       const stockPos = await measureStock();
 
       if (!stockPos) {
-        console.log('StockToHandAnimation: Could not measure stock position, skipping animation');
+        logger.debug('StockToHandAnimation: Could not measure stock position, skipping animation');
         onAnimationComplete();
         return;
       }
