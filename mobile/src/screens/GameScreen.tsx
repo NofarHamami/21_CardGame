@@ -106,12 +106,12 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numPlayers, playerName, playerAvatar, gameMode, language, t]);
 
-  // Navigate to scoreboard and record stats when game ends
+  // Navigate to scoreboard and record stats when game ends (with delay for confetti)
   useEffect(() => {
     if (gameEngine.isGameOver && gameEngine.winner && !hasNavigatedToScoreboard.current) {
       hasNavigatedToScoreboard.current = true;
 
-      // Record stats
+      // Record stats and play sounds immediately
       if (!hasRecordedResult.current) {
         hasRecordedResult.current = true;
         const humanWon = !gameEngine.winner.isAI;
@@ -133,7 +133,12 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
         score: calculateScore(player, index + 1, gameEngine.players.length),
       }));
 
-      navigation.replace('Scoreboard', { players: playersWithScores });
+      // Delay navigation so the confetti animation is visible
+      const timer = setTimeout(() => {
+        navigation.replace('Scoreboard', { players: playersWithScores });
+      }, 3500);
+
+      return () => clearTimeout(timer);
     }
   }, [gameEngine.isGameOver, gameEngine.winner, gameEngine.players, gameEngine.turnCount, navigation]);
 

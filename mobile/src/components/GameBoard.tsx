@@ -33,15 +33,19 @@ const translations = {
     endTurn: 'סיים תור',
     cancel: 'בטל',
     gameOver: 'המשחק נגמר!',
+    youWon: '🎉 ניצחת! 🎉',
     wins: 'ניצח!',
     newGame: 'משחק חדש',
+    playAgain: 'שחק שוב',
   },
   en: {
     endTurn: 'End Turn',
     cancel: 'Cancel',
     gameOver: 'Game Over!',
+    youWon: '🎉 You Won! 🎉',
     wins: 'wins!',
     newGame: 'New Game',
+    playAgain: 'Play Again',
   },
 };
 
@@ -273,13 +277,19 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                 compact={currentPlayerIndex !== 0}
                 position="top"
                 newlyDrawnCards={getNewlyDrawnCardsForPlayer(0)}
+                onEndTurn={currentPlayerIndex === 0 && !isCurrentPlayerAI ? endCurrentTurn : undefined}
+                canEndTurn={currentPlayerIndex === 0 && canEndCurrentTurn}
+                onCancelSelection={currentPlayerIndex === 0 && !isCurrentPlayerAI ? clearSelection : undefined}
+                hasSelection={currentPlayerIndex === 0 && !!selectedCard}
               />
             </Animated.View>
           )}
 
           {/* MIDDLE ROW */}
           <View style={styles.middleRow} onLayout={handleMiddleRowLayout}>
-            {player3 && (
+            {/* Left side: player3 in 4-player mode, or empty spacer in 3-player mode */}
+            {player3 && !player4 && <View style={styles.leftSection} />}
+            {player3 && player4 && (
               <View style={styles.leftSection} key={`player-2-${player3.name}-${player3.avatar}`}>
                 <PlayerArea
                   player={player3}
@@ -294,6 +304,10 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                   newlyDrawnCards={getNewlyDrawnCardsForPlayer(2)}
                   containerWidth={responsive.sideWidth}
                   containerHeight={middleRowHeight}
+                  onEndTurn={currentPlayerIndex === 2 && !isCurrentPlayerAI ? endCurrentTurn : undefined}
+                  canEndTurn={currentPlayerIndex === 2 && canEndCurrentTurn}
+                  onCancelSelection={currentPlayerIndex === 2 && !isCurrentPlayerAI ? clearSelection : undefined}
+                  hasSelection={currentPlayerIndex === 2 && !!selectedCard}
                 />
               </View>
             )}
@@ -309,23 +323,45 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                 stockRef={stockRef}
                 isAITurn={isCurrentPlayerAI}
               />
+              {isCurrentPlayerAI && (
+                <View style={styles.aiIndicator}>
+                  <Text style={styles.aiIndicatorText}>
+                    {language === 'he' ? `${currentPlayer?.name} חושב...` : `${currentPlayer?.name} is thinking...`}
+                  </Text>
+                </View>
+              )}
             </View>
 
-            {player4 && (
-              <View style={styles.rightSection} key={`player-3-${player4.name}-${player4.avatar}`}>
+            {/* Right side: player4 in 4-player mode, or player3 in 3-player mode */}
+            {(player4 || (player3 && !player4)) && (
+              <View style={styles.rightSection} key={player4 ? `player-3-${player4.name}-${player4.avatar}` : `player-2-${player3!.name}-${player3!.avatar}`}>
                 <PlayerArea
-                  player={player4}
-                  isCurrentPlayer={currentPlayerIndex === 3}
-                  selectedCard={currentPlayerIndex === 3 && !isCurrentPlayerAI ? selectedCard : null}
-                  onSelectCard={currentPlayerIndex === 3 && !isCurrentPlayerAI ? handleSelectCard : () => {}}
-                  onPlayToStorage={currentPlayerIndex === 3 && !isCurrentPlayerAI ? playSelectedToStorage : () => {}}
-                  showHandCards={currentPlayerIndex === 3}
+                  player={player4 || player3!}
+                  isCurrentPlayer={player4 ? currentPlayerIndex === 3 : currentPlayerIndex === 2}
+                  selectedCard={player4
+                    ? (currentPlayerIndex === 3 && !isCurrentPlayerAI ? selectedCard : null)
+                    : (currentPlayerIndex === 2 && !isCurrentPlayerAI ? selectedCard : null)}
+                  onSelectCard={player4
+                    ? (currentPlayerIndex === 3 && !isCurrentPlayerAI ? handleSelectCard : () => {})
+                    : (currentPlayerIndex === 2 && !isCurrentPlayerAI ? handleSelectCard : () => {})}
+                  onPlayToStorage={player4
+                    ? (currentPlayerIndex === 3 && !isCurrentPlayerAI ? playSelectedToStorage : () => {})
+                    : (currentPlayerIndex === 2 && !isCurrentPlayerAI ? playSelectedToStorage : () => {})}
+                  showHandCards={player4 ? currentPlayerIndex === 3 : currentPlayerIndex === 2}
                   showStorageCards={true}
-                  compact={currentPlayerIndex !== 3}
+                  compact={player4 ? currentPlayerIndex !== 3 : currentPlayerIndex !== 2}
                   position="right"
-                  newlyDrawnCards={getNewlyDrawnCardsForPlayer(3)}
+                  newlyDrawnCards={player4 ? getNewlyDrawnCardsForPlayer(3) : getNewlyDrawnCardsForPlayer(2)}
                   containerWidth={responsive.sideWidth}
                   containerHeight={middleRowHeight}
+                  onEndTurn={player4
+                    ? (currentPlayerIndex === 3 && !isCurrentPlayerAI ? endCurrentTurn : undefined)
+                    : (currentPlayerIndex === 2 && !isCurrentPlayerAI ? endCurrentTurn : undefined)}
+                  canEndTurn={player4 ? currentPlayerIndex === 3 && canEndCurrentTurn : currentPlayerIndex === 2 && canEndCurrentTurn}
+                  onCancelSelection={player4
+                    ? (currentPlayerIndex === 3 && !isCurrentPlayerAI ? clearSelection : undefined)
+                    : (currentPlayerIndex === 2 && !isCurrentPlayerAI ? clearSelection : undefined)}
+                  hasSelection={player4 ? currentPlayerIndex === 3 && !!selectedCard : currentPlayerIndex === 2 && !!selectedCard}
                 />
               </View>
             )}
@@ -357,46 +393,14 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                 compact={currentPlayerIndex !== 1}
                 position="bottom"
                 newlyDrawnCards={getNewlyDrawnCardsForPlayer(1)}
+                onEndTurn={currentPlayerIndex === 1 && !isCurrentPlayerAI ? endCurrentTurn : undefined}
+                canEndTurn={currentPlayerIndex === 1 && canEndCurrentTurn}
+                onCancelSelection={currentPlayerIndex === 1 && !isCurrentPlayerAI ? clearSelection : undefined}
+                hasSelection={currentPlayerIndex === 1 && !!selectedCard}
               />
             </Animated.View>
           )}
 
-          {/* Action buttons - hidden during AI turns */}
-          {currentPlayer && !isCurrentPlayerAI && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={[styles.button, !canEndCurrentTurn && styles.buttonDisabled]}
-                onPress={endCurrentTurn}
-                disabled={!canEndCurrentTurn}
-                accessibilityRole="button"
-                accessibilityLabel={language === 'he' ? 'סיים תור' : 'End turn'}
-                accessibilityState={{ disabled: !canEndCurrentTurn }}
-              >
-                <Text style={styles.buttonText}>{t.endTurn}</Text>
-              </TouchableOpacity>
-              {selectedCard && (
-                <TouchableOpacity
-                  style={[styles.button, styles.cancelButton]}
-                  onPress={clearSelection}
-                  accessibilityRole="button"
-                  accessibilityLabel={language === 'he' ? 'בטל בחירה' : 'Cancel selection'}
-                >
-                  <Text style={styles.buttonText}>{t.cancel}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-
-          {/* AI thinking indicator */}
-          {isCurrentPlayerAI && (
-            <View style={styles.actionButtons}>
-              <View style={styles.aiIndicator}>
-                <Text style={styles.aiIndicatorText}>
-                  {language === 'he' ? `${currentPlayer?.name} חושב...` : `${currentPlayer?.name} is thinking...`}
-                </Text>
-              </View>
-            </View>
-          )}
         </View>
       </SafeAreaView>
 
@@ -410,25 +414,45 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
         />
       )}
 
-      {/* Confetti on win */}
-      <ConfettiAnimation visible={isGameOver && !!winner} />
+      {/* Confetti only when the human player wins */}
+      <ConfettiAnimation visible={isGameOver && !!winner && !winner.isAI} />
 
       {/* Game Over Modal */}
       <Modal visible={isGameOver} transparent animationType="fade" onRequestClose={handleCloseModal}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={handleCloseModal}>
-          <TouchableOpacity style={styles.modalContent} activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle} accessibilityRole="header">{t.gameOver}</Text>
-            <Text style={styles.winnerText}>
-              {winner?.name} {t.wins}
-            </Text>
-            <TouchableOpacity
-              style={styles.newGameButton}
-              onPress={handleCloseModal}
-              accessibilityRole="button"
-              accessibilityLabel={language === 'he' ? 'התחל משחק חדש' : 'Start new game'}
-            >
-              <Text style={styles.newGameButtonText}>{t.newGame}</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modalContent, !winner?.isAI && styles.modalContentWin]}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {winner && !winner.isAI ? (
+              <>
+                <Text style={styles.youWonTitle} accessibilityRole="header">{t.youWon}</Text>
+                <TouchableOpacity
+                  style={styles.playAgainButton}
+                  onPress={handleCloseModal}
+                  accessibilityRole="button"
+                  accessibilityLabel={language === 'he' ? 'שחק שוב' : 'Play again'}
+                >
+                  <Text style={styles.newGameButtonText}>{t.playAgain}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalTitle} accessibilityRole="header">{t.gameOver}</Text>
+                <Text style={styles.winnerText}>
+                  {winner?.name} {t.wins}
+                </Text>
+                <TouchableOpacity
+                  style={styles.newGameButton}
+                  onPress={handleCloseModal}
+                  accessibilityRole="button"
+                  accessibilityLabel={language === 'he' ? 'התחל משחק חדש' : 'Start new game'}
+                >
+                  <Text style={styles.newGameButtonText}>{t.newGame}</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -450,6 +474,8 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
     gameLayout: {
       flex: 1,
       flexDirection: 'column',
+      justifyContent: 'space-between',
+      paddingBottom: 10,
     },
     settingsButton: {
       position: 'absolute',
@@ -517,8 +543,12 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       ...(isDesktop ? { zIndex: 1, overflow: 'visible' as const } : {}),
     },
     leftSection: isDesktop
-      ? { justifyContent: 'center' as const, alignItems: 'center' as const }
-      : { width: sideWidth, height: '100%' as const, justifyContent: 'center' as const, alignItems: 'center' as const },
+      ? {
+          justifyContent: 'center' as const,
+          alignItems: 'center' as const,
+          ...(screenWidth <= 1900 ? { position: 'relative' as const, left: 200 } : {}),
+        }
+      : { width: sideWidth, justifyContent: 'center' as const, alignItems: 'center' as const },
     centerSection: {
       flex: 1,
       justifyContent: 'center',
@@ -527,8 +557,12 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       paddingHorizontal: responsive.centerPaddingHorizontal,
     },
     rightSection: isDesktop
-      ? { justifyContent: 'center' as const, alignItems: 'center' as const }
-      : { width: sideWidth, height: '100%' as const, justifyContent: 'center' as const, alignItems: 'center' as const },
+      ? {
+          justifyContent: 'center' as const,
+          alignItems: 'center' as const,
+          ...(screenWidth <= 1900 ? { position: 'relative' as const, right: 200 } : {}),
+        }
+      : { width: sideWidth, justifyContent: 'center' as const, alignItems: 'center' as const },
     bottomSection: {
       alignItems: 'center',
       paddingVertical: responsive.paddingVertical,
@@ -589,6 +623,7 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: colors.border,
+      marginTop: 8,
     },
     aiIndicatorText: {
       color: colors.mutedForeground,
@@ -614,11 +649,22 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       shadowRadius: 20,
       elevation: 20,
     },
+    modalContentWin: {
+      borderColor: '#4CAF50',
+      shadowColor: '#4CAF50',
+    },
     modalTitle: {
       fontSize: 32,
       fontWeight: 'bold',
       color: colors.gold,
       marginBottom: 15,
+    },
+    youWonTitle: {
+      fontSize: 36,
+      fontWeight: 'bold',
+      color: '#4CAF50',
+      marginBottom: 30,
+      textAlign: 'center',
     },
     winnerText: {
       fontSize: 24,
@@ -634,6 +680,19 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       borderWidth: 1,
       borderColor: colors.goldLight,
       shadowColor: colors.gold,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    playAgainButton: {
+      backgroundColor: '#4CAF50',
+      paddingHorizontal: 40,
+      paddingVertical: 15,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: '#66BB6A',
+      shadowColor: '#4CAF50',
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.4,
       shadowRadius: 8,

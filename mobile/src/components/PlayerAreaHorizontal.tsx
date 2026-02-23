@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { Player, Card, CardSource, getPersonalPileTop, getPersonalPileSize } from '../models';
 import CardView from './CardView';
 import { SelectedCard } from '../hooks/useGameEngine';
@@ -46,6 +46,10 @@ interface PlayerAreaHorizontalProps {
   isLargeScreen: boolean;
   isDesktop?: boolean;
   newlyDrawnCards?: Card[];
+  onEndTurn?: () => void;
+  canEndTurn?: boolean;
+  onCancelSelection?: () => void;
+  hasSelection?: boolean;
 }
 
 /**
@@ -63,6 +67,10 @@ export function PlayerAreaHorizontal({
   isLargeScreen,
   isDesktop = false,
   newlyDrawnCards = [],
+  onEndTurn,
+  canEndTurn = false,
+  onCancelSelection,
+  hasSelection = false,
 }: PlayerAreaHorizontalProps) {
   const [language, setLanguage] = useState<Language>('he');
 
@@ -87,6 +95,10 @@ export function PlayerAreaHorizontal({
     onSelectCard(card, source, index);
   };
 
+  const screenWidth = React.useMemo(() => {
+    try { return Dimensions.get('window').width; } catch { return 800; }
+  }, []);
+
   const styles = createStyles(isSmallScreen, isLargeScreen, isDesktop);
 
   return (
@@ -94,8 +106,9 @@ export function PlayerAreaHorizontal({
       styles.container,
       isDesktop && !isCurrentPlayer && styles.desktopCompactContainer,
       isCurrentPlayer && styles.currentPlayerContainer,
+      isDesktop && isCurrentPlayer && screenWidth <= 1900 && { width: 500 },
     ]}>
-      {/* Header: Avatar + Name */}
+      {/* Header: Avatar + Name + Action Buttons */}
       <View style={styles.header} accessibilityRole="header">
         <PlayerAvatar
           name={player.name}
@@ -116,6 +129,34 @@ export function PlayerAreaHorizontal({
           {player.name}
           {isCurrentPlayer && ` ${t.yourTurn}`}
         </Text>
+
+        {isCurrentPlayer && onEndTurn && (
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.headerBtn, !canEndTurn && styles.headerBtnDisabled]}
+              onPress={onEndTurn}
+              disabled={!canEndTurn}
+              accessibilityRole="button"
+              accessibilityLabel={language === 'he' ? 'סיים תור' : 'End Turn'}
+            >
+              <Text style={[styles.headerBtnText, !canEndTurn && styles.headerBtnTextDisabled]}>
+                {language === 'he' ? 'סיים תור' : 'End Turn'}
+              </Text>
+            </TouchableOpacity>
+            {hasSelection && onCancelSelection && (
+              <TouchableOpacity
+                style={[styles.headerBtn, styles.headerBtnCancel]}
+                onPress={onCancelSelection}
+                accessibilityRole="button"
+                accessibilityLabel={language === 'he' ? 'בטל' : 'Cancel'}
+              >
+                <Text style={styles.headerBtnText}>
+                  {language === 'he' ? 'בטל' : 'Cancel'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Main row: 21-pile + Hand */}
@@ -128,7 +169,7 @@ export function PlayerAreaHorizontal({
             onPress={isCurrentPlayer ? () => personalPileTop && handleCardPress(personalPileTop, CardSource.PERSONAL_PILE, 0) : undefined}
             disabled={!isCurrentPlayer || !personalPileTop}
             showCount={personalPileSize}
-            compact={position === 'top'}
+            compact={position === 'top' || !isCurrentPlayer}
           />
           <Text style={styles.label} accessibilityRole="text">{t.pile21}</Text>
         </View>
@@ -176,7 +217,7 @@ export function PlayerAreaHorizontal({
         onSelectCard={onSelectCard}
         onPlayToStorage={onPlayToStorage}
         isCardSelected={isCardSelected}
-        compact={isDesktop || position === 'top'}
+        compact={isDesktop || position === 'top' || !isCurrentPlayer}
         horizontal={true}
         language={language}
       />
@@ -192,7 +233,7 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean, isDesktop:
     borderRadius: 12,
     marginHorizontal: isSmallScreen ? 2 : 5,
     ...(isDesktop
-      ? { width: 316, flexDirection: 'column' as const }
+      ? { width: 500, flexDirection: 'column' as const }
       : { maxWidth: '100%' }),
   },
   desktopCompactContainer: {
@@ -209,6 +250,37 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean, isDesktop:
     alignItems: 'center',
     gap: SPACING.GAP_MEDIUM,
     marginBottom: SPACING.GAP_MEDIUM,
+    width: '100%',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 6,
+    marginLeft: 'auto',
+  },
+  headerBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: isSmallScreen ? 10 : 14,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.goldLight,
+  },
+  headerBtnDisabled: {
+    backgroundColor: colors.muted,
+    borderColor: colors.mutedForeground,
+    opacity: 0.5,
+  },
+  headerBtnCancel: {
+    backgroundColor: colors.destructive,
+    borderColor: colors.destructive,
+  },
+  headerBtnText: {
+    color: colors.primaryForeground,
+    fontSize: isSmallScreen ? 10 : 12,
+    fontWeight: 'bold',
+  },
+  headerBtnTextDisabled: {
+    opacity: 0.7,
   },
   playerName: {
     color: colors.foreground,

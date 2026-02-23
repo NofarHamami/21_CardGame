@@ -18,6 +18,10 @@ interface PlayerAreaProps {
   newlyDrawnCards?: Card[];
   containerWidth?: number;   // For left/right rotation - the side section width
   containerHeight?: number;  // For left/right rotation - the middle row height
+  onEndTurn?: () => void;
+  canEndTurn?: boolean;
+  onCancelSelection?: () => void;
+  hasSelection?: boolean;
 }
 
 /**
@@ -37,6 +41,10 @@ export function PlayerArea({
   newlyDrawnCards = [],
   containerWidth = 0,
   containerHeight = 0,
+  onEndTurn,
+  canEndTurn = false,
+  onCancelSelection,
+  hasSelection = false,
 }: PlayerAreaProps) {
   const [measuredHeight, setMeasuredHeight] = useState(0);
 
@@ -79,6 +87,10 @@ export function PlayerArea({
         isLargeScreen={isLargeScreen}
         isDesktop={isDesktop}
         newlyDrawnCards={newlyDrawnCards}
+        onEndTurn={onEndTurn}
+        canEndTurn={canEndTurn}
+        onCancelSelection={onCancelSelection}
+        hasSelection={hasSelection}
       />
     );
   }
@@ -142,6 +154,10 @@ export function PlayerArea({
             isSmallScreen={isSmallScreen}
             isLargeScreen={isLargeScreen}
             newlyDrawnCards={newlyDrawnCards}
+            onEndTurn={onEndTurn}
+            canEndTurn={canEndTurn}
+            onCancelSelection={onCancelSelection}
+            hasSelection={hasSelection}
           />
         </View>
       </View>
@@ -162,6 +178,10 @@ export function PlayerArea({
       isLargeScreen={isLargeScreen}
       isDesktop={isDesktop}
       newlyDrawnCards={newlyDrawnCards}
+      onEndTurn={onEndTurn}
+      canEndTurn={canEndTurn}
+      onCancelSelection={onCancelSelection}
+      hasSelection={hasSelection}
     />
   );
 }

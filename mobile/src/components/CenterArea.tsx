@@ -205,6 +205,8 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     gap: isSmallScreen ? 3 : isLargeScreen ? 8 : 4,
     flexWrap: 'wrap',
     justifyContent: 'center',
+    position: 'relative',
+    left: 250,
   },
   pileSlot: {
     alignItems: 'center',
