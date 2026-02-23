@@ -141,7 +141,7 @@ export function CenterArea({
           style={styles.stockSection}
           accessibilityLabel={`Stock pile with ${stockPileSize} cards`}
         >
-          <Text style={styles.sectionLabel} accessibilityRole="text">{t.stock}</Text>
+          <Text style={styles.stockLabel} accessibilityRole="text">{t.stock}</Text>
           <CardView
             card={null}
             faceDown={stockPileSize > 0}
@@ -193,12 +193,16 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     alignItems: 'center',
     flexShrink: 1,
     minWidth: 0,
+    position: 'relative',
+    left: 250,
   },
   sectionLabel: {
     color: colors.mutedForeground,
     fontSize: 11,
     marginBottom: 6,
     fontWeight: '500',
+    position: 'relative',
+    right: 250,
   },
   pilesRow: {
     flexDirection: 'row',
@@ -206,7 +210,7 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     flexWrap: 'wrap',
     justifyContent: 'center',
     position: 'relative',
-    left: 250,
+    right: 250,
   },
   pileSlot: {
     alignItems: 'center',
@@ -253,6 +257,12 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
   completePileLabel: {
     color: colors.accent,
     fontWeight: 'bold',
+  },
+  stockLabel: {
+    color: colors.mutedForeground,
+    fontSize: 11,
+    marginBottom: 6,
+    fontWeight: '500',
   },
   stockSection: {
     alignItems: 'center',

@@ -544,6 +544,7 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
     },
     leftSection: isDesktop
       ? {
+          width: 500,
           justifyContent: 'center' as const,
           alignItems: 'center' as const,
           ...(screenWidth <= 1900 ? { position: 'relative' as const, left: 200 } : {}),
@@ -558,6 +559,7 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
     },
     rightSection: isDesktop
       ? {
+          width: 500,
           justifyContent: 'center' as const,
           alignItems: 'center' as const,
           ...(screenWidth <= 1900 ? { position: 'relative' as const, right: 200 } : {}),
