@@ -289,7 +289,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       </SafeAreaView>
 
       {/* Tutorial overlay */}
-      <Tutorial visible={tutorialVisible} onClose={() => setTutorialVisible(false)} />
+      <Tutorial visible={tutorialVisible} onClose={() => setTutorialVisible(false)} language={language} />
     </View>
   );
 }

@@ -9,7 +9,6 @@ import {
   Dimensions,
 } from 'react-native';
 import { colors } from '../theme/colors';
-import { loadLanguagePreference } from '../utils/storage';
 
 type Language = 'he' | 'en';
 
@@ -70,47 +69,64 @@ const STEPS_EN = [
 interface TutorialProps {
   visible: boolean;
   onClose: () => void;
+  language: Language;
 }
 
-export function Tutorial({ visible, onClose }: TutorialProps) {
+export function Tutorial({ visible, onClose, language }: TutorialProps) {
   const [step, setStep] = useState(0);
-  const [language, setLanguage] = useState<Language>('he');
+  const [isAnimating, setIsAnimating] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    loadLanguagePreference().then(setLanguage);
-  }, []);
+  const slideAnim = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       setStep(0);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      fadeAnim.setValue(0);
+      slideAnim.setValue(0);
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 60, friction: 8 }),
+      ]).start();
     }
-  }, [visible, fadeAnim]);
+  }, [visible, fadeAnim, slideAnim]);
 
   const steps = language === 'he' ? STEPS_HE : STEPS_EN;
   const current = steps[step];
   const isLast = step === steps.length - 1;
+  const isFirst = step === 0;
+
+  const animateTransition = (newStep: number, direction: 'next' | 'prev') => {
+    if (isAnimating) return;
+    setIsAnimating(true);
+    const slideOut = direction === 'next' ? -30 : 30;
+    const slideIn = direction === 'next' ? 30 : -30;
+
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: slideOut, duration: 150, useNativeDriver: true }),
+    ]).start(() => {
+      setStep(newStep);
+      slideAnim.setValue(slideIn);
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }),
+      ]).start(() => setIsAnimating(false));
+    });
+  };
 
   const handleNext = () => {
+    if (isAnimating) return;
     if (isLast) {
       onClose();
     } else {
-      Animated.sequence([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-      ]).start();
-      setStep(s => s + 1);
+      animateTransition(step + 1, 'next');
     }
   };
 
   const handlePrev = () => {
-    if (step > 0) {
-      setStep(s => s - 1);
+    if (isAnimating) return;
+    if (!isFirst) {
+      animateTransition(step - 1, 'prev');
     }
   };
 
@@ -119,29 +135,39 @@ export function Tutorial({ visible, onClose }: TutorialProps) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <Animated.View style={[styles.card, { opacity: fadeAnim }]}>
-          <Text style={styles.stepIndicator}>
-            {step + 1} / {steps.length}
-          </Text>
-          <Text style={styles.title}>{current.title}</Text>
-          <Text style={styles.body}>{current.body}</Text>
+        <View style={styles.card}>
+          {/* Progress dots */}
+          <View style={styles.progressDots}>
+            {steps.map((_, i) => (
+              <View
+                key={i}
+                style={[styles.dot, i === step && styles.dotActive, i < step && styles.dotCompleted]}
+              />
+            ))}
+          </View>
 
-          <View style={styles.buttons}>
-            {step > 0 && (
-              <TouchableOpacity
-                style={[styles.btn, styles.btnSecondary]}
-                onPress={handlePrev}
-                accessibilityRole="button"
-                accessibilityLabel={language === 'he' ? 'הקודם' : 'Previous'}
-              >
-                <Text style={styles.btnSecondaryText}>
-                  {language === 'he' ? 'הקודם' : 'Back'}
-                </Text>
-              </TouchableOpacity>
-            )}
+          <Animated.View style={[styles.stepContent, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
+            <Text style={styles.title}>{current.title}</Text>
+            <Text style={styles.body}>{current.body}</Text>
+          </Animated.View>
+
+          <View style={[styles.buttons, language === 'he' && styles.buttonsRTL]}>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnSecondary, isFirst && styles.btnHidden]}
+              onPress={handlePrev}
+              disabled={isFirst || isAnimating}
+              accessibilityRole="button"
+              accessibilityLabel={language === 'he' ? 'הקודם' : 'Previous'}
+            >
+              <Text style={styles.btnSecondaryText}>
+                {language === 'he' ? 'הקודם' : 'Back'}
+              </Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.btn, styles.btnPrimary]}
               onPress={handleNext}
+              disabled={isAnimating}
               accessibilityRole="button"
               accessibilityLabel={isLast ? (language === 'he' ? 'סיום' : 'Done') : (language === 'he' ? 'הבא' : 'Next')}
             >
@@ -161,7 +187,7 @@ export function Tutorial({ visible, onClose }: TutorialProps) {
           >
             <Text style={styles.skipText}>{language === 'he' ? 'דלג' : 'Skip'}</Text>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
       </View>
     </Modal>
   );
@@ -191,10 +217,29 @@ const styles = StyleSheet.create({
     elevation: 20,
     alignItems: 'center',
   },
-  stepIndicator: {
-    color: colors.mutedForeground,
-    fontSize: 12,
-    marginBottom: 8,
+  progressDots: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
+    justifyContent: 'center',
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+  },
+  dotActive: {
+    backgroundColor: colors.gold,
+    width: 24,
+    borderRadius: 4,
+  },
+  dotCompleted: {
+    backgroundColor: colors.primary,
+  },
+  stepContent: {
+    alignItems: 'center',
+    minHeight: 100,
   },
   title: {
     fontSize: 24,
@@ -213,6 +258,13 @@ const styles = StyleSheet.create({
   buttons: {
     flexDirection: 'row',
     gap: 12,
+    justifyContent: 'center',
+  },
+  buttonsRTL: {
+    flexDirection: 'row-reverse',
+  },
+  btnHidden: {
+    opacity: 0,
   },
   btn: {
     paddingHorizontal: 24,
