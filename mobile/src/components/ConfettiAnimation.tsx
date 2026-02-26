@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import { isReduceMotionEnabled } from '../utils/sounds';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const NUM_CONFETTI = 40;
@@ -79,7 +80,7 @@ export function ConfettiAnimation({ visible }: ConfettiAnimationProps) {
     Animated.parallel(animations).start();
   }, [visible]);
 
-  if (!visible) return null;
+  if (!visible || isReduceMotionEnabled()) return null;
 
   return (
     <View style={styles.container} pointerEvents="none">

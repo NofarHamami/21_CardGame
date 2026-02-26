@@ -15,7 +15,13 @@ export type RootStackParamList = {
   Home: undefined;
   PlayerSetup: { gameMode: 'practice' | 'private' | 'random'; numPlayers: number };
   Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' | 'random'; resumeState?: string };
-  Scoreboard: { players: Array<{ name: string; avatar?: string; score: number }> };
+  Scoreboard: {
+    players: Array<{ name: string; avatar?: string; score: number; cardsRemaining: number }>;
+    turnsPlayed: number;
+    gameMode?: string;
+    numPlayers: number;
+    aiDifficulty?: string;
+  };
   WaitingRoom: { gameMode: 'random'; numPlayers: number; playerName: string; playerAvatar: string };
   Stats: undefined;
 };

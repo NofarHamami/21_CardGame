@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -17,8 +18,20 @@ type Language = 'he' | 'en';
 type RootStackParamList = {
   Home: undefined;
   PlayerSetup: { gameMode: 'practice' | 'private'; numPlayers: number };
-  Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' };
-  Scoreboard: { players: Array<{ name: string; avatar?: string; score: number }> };
+  Game: {
+    numPlayers: number;
+    playerName?: string;
+    playerAvatar?: string;
+    gameMode?: 'practice' | 'private';
+    aiDifficulty?: string;
+  };
+  Scoreboard: {
+    players: Array<{ name: string; avatar?: string; score: number; cardsRemaining: number }>;
+    turnsPlayed: number;
+    gameMode?: string;
+    numPlayers: number;
+    aiDifficulty?: string;
+  };
 };
 
 type ScoreboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Scoreboard'>;
@@ -29,36 +42,27 @@ interface ScoreboardScreenProps {
   route: ScoreboardScreenRouteProp;
 }
 
-interface PlayerScore {
-  name: string;
-  avatar?: string;
-  score: number;
-}
-
 const translations = {
   he: {
     title: 'טבלת ניקוד',
-    winner: '🏆 המנצח!',
     victory: 'ניצחון!',
     score: 'ניקוד:',
     playAgain: 'שחק שוב',
+    rematch: 'משחק חוזר',
     backToMenu: 'חזור לתפריט',
   },
   en: {
     title: 'Scoreboard',
-    winner: '🏆 Winner!',
     victory: 'Victory!',
     score: 'Score:',
     playAgain: 'Play Again',
+    rematch: 'Rematch',
     backToMenu: 'Back to Menu',
   },
 };
 
-/**
- * Scoreboard screen - shows final scores with winner at top
- */
 export function ScoreboardScreen({ navigation, route }: ScoreboardScreenProps) {
-  const { players } = route.params;
+  const { players, gameMode, numPlayers, aiDifficulty } = route.params;
   const [language, setLanguage] = useState<Language>('he');
 
   useEffect(() => {
@@ -67,26 +71,45 @@ export function ScoreboardScreen({ navigation, route }: ScoreboardScreenProps) {
     });
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const style = document.createElement('style');
+      style.textContent = `
+        html, body, #root, [data-testid="scrollview"] {
+          overflow: hidden !important;
+        }
+        *::-webkit-scrollbar { display: none !important; }
+        * { scrollbar-width: none !important; }
+      `;
+      document.head.appendChild(style);
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.head.removeChild(style);
+        document.body.style.overflow = '';
+      };
+    }
+  }, []);
+
   const t = translations[language];
 
-  // Sort players: winner (score 100) first, then others by score (higher is better)
   const sortedPlayers = [...players].sort((a, b) => {
-    // Winner (score 100) always first
     if (a.score === 100) return -1;
     if (b.score === 100) return 1;
-    // Others sorted by score (higher is better - fewer cards remaining = higher score)
     return b.score - a.score;
   });
-
-  const winner = sortedPlayers[0];
-  const isWinner = winner.score === 100;
 
   const handleBackToHome = () => {
     navigation.navigate('Home');
   };
 
-  const handlePlayAgain = () => {
-    navigation.navigate('Home');
+  const handleRematch = () => {
+    navigation.replace('Game', {
+      numPlayers: numPlayers || players.length,
+      playerName: sortedPlayers.find(p => p.score === 100)?.name || players[0]?.name,
+      playerAvatar: sortedPlayers.find(p => p.score === 100)?.avatar || players[0]?.avatar,
+      gameMode: (gameMode as 'practice' | 'private') || 'practice',
+      aiDifficulty,
+    });
   };
 
   return (
@@ -95,23 +118,17 @@ export function ScoreboardScreen({ navigation, route }: ScoreboardScreenProps) {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
         >
-          {/* Title */}
           <View style={styles.titleSection}>
             <Text style={styles.title}>{t.title}</Text>
-            {isWinner && (
-              <View style={styles.winnerBadge}>
-                <Text style={styles.winnerText}>{t.winner}</Text>
-              </View>
-            )}
           </View>
 
-          {/* Scoreboard */}
           <View style={styles.scoreboard}>
             {sortedPlayers.map((player, index) => {
               const isFirstPlace = index === 0;
               const rank = index + 1;
-              
+
               return (
                 <View
                   key={`${player.name}-${index}`}
@@ -120,20 +137,18 @@ export function ScoreboardScreen({ navigation, route }: ScoreboardScreenProps) {
                     isFirstPlace && styles.scoreRowWinner,
                   ]}
                 >
-                  {/* Rank */}
                   <View style={styles.rankContainer}>
                     {isFirstPlace ? (
-                      <Text style={styles.rankEmoji}>🥇</Text>
+                      <Text style={styles.rankEmoji}>{'🥇'}</Text>
                     ) : rank === 2 ? (
-                      <Text style={styles.rankEmoji}>🥈</Text>
+                      <Text style={styles.rankEmoji}>{'🥈'}</Text>
                     ) : rank === 3 ? (
-                      <Text style={styles.rankEmoji}>🥉</Text>
+                      <Text style={styles.rankEmoji}>{'🥉'}</Text>
                     ) : (
                       <Text style={styles.rankNumber}>{rank}</Text>
                     )}
                   </View>
 
-                  {/* Avatar */}
                   <View style={styles.avatarContainer}>
                     <View style={[
                       styles.avatarCircle,
@@ -145,7 +160,6 @@ export function ScoreboardScreen({ navigation, route }: ScoreboardScreenProps) {
                     </View>
                   </View>
 
-                  {/* Name and Score */}
                   <View style={styles.playerInfo}>
                     <Text style={[
                       styles.playerName,
@@ -165,17 +179,20 @@ export function ScoreboardScreen({ navigation, route }: ScoreboardScreenProps) {
             })}
           </View>
 
-          {/* Action Buttons */}
           <View style={styles.actions}>
             <TouchableOpacity
-              style={styles.playAgainButton}
-              onPress={handlePlayAgain}
+              style={styles.rematchButton}
+              onPress={handleRematch}
+              accessibilityRole="button"
+              accessibilityLabel={t.rematch}
             >
-              <Text style={styles.playAgainButtonText}>{t.playAgain}</Text>
+              <Text style={styles.rematchButtonText}>{t.rematch}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.backButton}
               onPress={handleBackToHome}
+              accessibilityRole="button"
+              accessibilityLabel={t.backToMenu}
             >
               <Text style={styles.backButtonText}>{t.backToMenu}</Text>
             </TouchableOpacity>
@@ -208,38 +225,23 @@ const styles = StyleSheet.create({
     color: colors.accent,
     marginBottom: 16,
   },
-  winnerBadge: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    shadowColor: colors.gold,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  winnerText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.primaryForeground,
-  },
   scoreboard: {
     width: '100%',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   scoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.secondary,
     borderRadius: 14,
-    padding: 20,
+    padding: 16,
     marginBottom: 14,
     borderWidth: 2,
     borderColor: colors.border,
-    width: '35%',
-    height: 120,
+    width: '50%',
+    minHeight: 100,
     alignSelf: 'center',
+    overflow: 'hidden',
   },
   scoreRowWinner: {
     backgroundColor: colors.primary,
@@ -252,26 +254,26 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   rankContainer: {
-    width: 60,
+    width: 50,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rankEmoji: {
-    fontSize: 40,
+    fontSize: 36,
   },
   rankNumber: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: 'bold',
     color: colors.foreground,
   },
   avatarContainer: {
-    marginLeft: 14,
-    marginRight: 14,
+    marginLeft: 10,
+    marginRight: 10,
   },
   avatarCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.muted,
     justifyContent: 'center',
     alignItems: 'center',
@@ -284,37 +286,39 @@ const styles = StyleSheet.create({
     borderWidth: 3,
   },
   avatarEmoji: {
-    fontSize: 38,
+    fontSize: 32,
   },
   playerInfo: {
     flex: 1,
     alignItems: 'flex-end',
   },
   playerName: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
     color: colors.foreground,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   playerNameWinner: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: colors.primaryForeground,
   },
   playerScore: {
-    fontSize: 18,
+    fontSize: 16,
     color: colors.mutedForeground,
+    marginBottom: 6,
   },
   playerScoreWinner: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.primaryForeground,
   },
   actions: {
     width: '100%',
     gap: 12,
+    alignItems: 'center',
   },
-  playAgainButton: {
+  rematchButton: {
     backgroundColor: colors.primary,
     paddingHorizontal: 60,
     paddingVertical: 16,
@@ -325,9 +329,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
     minWidth: 200,
-    alignSelf: 'center',
   },
-  playAgainButtonText: {
+  rematchButtonText: {
     fontSize: 24,
     fontWeight: 'bold',
     color: colors.primaryForeground,

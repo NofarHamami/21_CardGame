@@ -9,12 +9,13 @@ import {
   Animated,
   Dimensions,
   Image,
+  Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MIN_PLAYERS, MAX_PLAYERS } from '../constants';
 import { colors } from '../theme/colors';
-import { loadPlayerPreferences, loadLanguagePreference, saveLanguagePreference } from '../utils/storage';
+import { loadPlayerPreferences, loadLanguagePreference, saveLanguagePreference, loadAIDifficulty, saveAIDifficulty, AIDifficulty, isFirstLaunch, markFirstLaunchDone } from '../utils/storage';
 import { loadSavedGame, clearSavedGame, SavedGame } from '../utils/gameSave';
 import { Tutorial } from '../components/Tutorial';
 
@@ -23,7 +24,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 type RootStackParamList = {
   Home: undefined;
   PlayerSetup: { gameMode: 'practice' | 'private' | 'random'; numPlayers: number };
-  Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' | 'random'; resumeState?: string };
+  Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' | 'random'; resumeState?: string; aiDifficulty?: AIDifficulty; timedMode?: boolean };
   Scoreboard: { players: Array<{ name: string; avatar?: string; score: number }> };
   WaitingRoom: { gameMode: 'random'; numPlayers: number; playerName: string; playerAvatar: string };
   Stats: undefined;
@@ -59,6 +60,13 @@ const translations = {
     resumeButton: 'המשך משחק',
     stats: 'סטטיסטיקות',
     howToPlay: 'איך משחקים?',
+    difficultyTitle: 'רמת קושי',
+    difficultyEasy: 'קל',
+    difficultyMedium: 'בינוני',
+    difficultyHard: 'קשה',
+    timedMode: 'מצב זמן',
+    timedOn: 'פעיל',
+    timedOff: 'כבוי',
   },
   en: {
     subtitle: 'Card Game',
@@ -79,6 +87,13 @@ const translations = {
     resumeButton: 'Resume Game',
     stats: 'Statistics',
     howToPlay: 'How to Play',
+    difficultyTitle: 'AI Difficulty',
+    difficultyEasy: 'Easy',
+    difficultyMedium: 'Medium',
+    difficultyHard: 'Hard',
+    timedMode: 'Timed Mode',
+    timedOn: 'On',
+    timedOff: 'Off',
   },
 };
 
@@ -89,6 +104,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [language, setLanguage] = useState<Language>('he');
   const [savedGame, setSavedGame] = useState<SavedGame | null>(null);
   const [tutorialVisible, setTutorialVisible] = useState(false);
+  const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
+  const [timedMode, setTimedMode] = useState(false);
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
 
@@ -98,6 +115,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     });
     loadLanguagePreference().then(lang => setLanguage(lang));
     loadSavedGame().then(saved => setSavedGame(saved));
+    loadAIDifficulty().then(d => setAiDifficulty(d));
+    isFirstLaunch().then(first => {
+      if (first) {
+        setTutorialVisible(true);
+        markFirstLaunchDone();
+      }
+    });
 
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
@@ -120,6 +144,11 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   };
 
   const t = translations[language];
+
+  const handleDifficultySelect = async (difficulty: AIDifficulty) => {
+    setAiDifficulty(difficulty);
+    await saveAIDifficulty(difficulty);
+  };
 
   const handleGameModeSelect = (mode: GameMode) => {
     setSelectedGameMode(mode);
@@ -153,6 +182,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           playerName: savedPreferences.name,
           playerAvatar: savedPreferences.avatar,
           gameMode: selectedGameMode,
+          aiDifficulty,
+          timedMode,
         });
       }
     } else {
@@ -230,6 +261,47 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                   </TouchableOpacity>
                 );
               })}
+            </View>
+
+            {/* AI Difficulty (practice mode only) */}
+            {selectedGameMode === 'practice' && (
+              <>
+                <Text style={styles.sectionTitle}>{t.difficultyTitle}</Text>
+                <View style={styles.playerButtons}>
+                  {(['easy', 'medium', 'hard'] as AIDifficulty[]).map((d) => {
+                    const isSelected = aiDifficulty === d;
+                    const label = d === 'easy' ? t.difficultyEasy : d === 'medium' ? t.difficultyMedium : t.difficultyHard;
+                    return (
+                      <TouchableOpacity
+                        key={d}
+                        style={[styles.difficultyButton, isSelected && styles.difficultyButtonSelected]}
+                        onPress={() => handleDifficultySelect(d)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={label}
+                        accessibilityState={{ selected: isSelected }}
+                      >
+                        <Text style={[styles.difficultyButtonText, isSelected && styles.difficultyButtonTextSelected]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {/* Timed Mode Toggle */}
+            <View style={styles.timedModeRow}>
+              <Text style={styles.sectionTitle}>{t.timedMode}</Text>
+              <Switch
+                value={timedMode}
+                onValueChange={setTimedMode}
+                trackColor={{ false: '#b0b0b0', true: '#4cd964' }}
+                thumbColor="#ffffff"
+                ios_backgroundColor="#b0b0b0"
+                accessibilityLabel={t.timedMode}
+              />
             </View>
 
             {/* Rules */}
@@ -420,6 +492,39 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: colors.primaryForeground,
+  },
+  difficultyButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.secondary,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  difficultyButtonSelected: {
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  difficultyButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.foreground,
+  },
+  difficultyButtonTextSelected: {
+    color: colors.primaryForeground,
+  },
+  timedModeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    width: '100%',
   },
   rulesSection: {
     width: '100%',

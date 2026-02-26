@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Animated } from 'react-native';
 import { Player, Card, CardSource, getPersonalPileTop, getPersonalPileSize } from '../models';
 import CardView from './CardView';
 import { SelectedCard } from '../hooks/useGameEngine';
@@ -50,6 +50,7 @@ interface PlayerAreaHorizontalProps {
   canEndTurn?: boolean;
   onCancelSelection?: () => void;
   hasSelection?: boolean;
+  onCardDragEnd?: (card: Card, source: CardSource, sourceIndex: number, dx: number, dy: number, moveX: number, moveY: number) => void;
 }
 
 /**
@@ -71,8 +72,14 @@ export function PlayerAreaHorizontal({
   canEndTurn = false,
   onCancelSelection,
   hasSelection = false,
+  onCardDragEnd,
 }: PlayerAreaHorizontalProps) {
   const [language, setLanguage] = useState<Language>('he');
+  const [isDragging21Pile, setIsDragging21Pile] = React.useState(false);
+
+  const flipAnim = React.useRef(new Animated.Value(1)).current;
+  const prev21PileCardIdRef = React.useRef<string | null>(null);
+  const hasInitialized21PileRef = React.useRef(false);
 
   useEffect(() => {
     loadLanguagePreference().then(lang => {
@@ -84,6 +91,25 @@ export function PlayerAreaHorizontal({
 
   const personalPileTop = getPersonalPileTop(player);
   const personalPileSize = getPersonalPileSize(player);
+
+  useEffect(() => {
+    const currId = personalPileTop?.id ?? null;
+    if (!hasInitialized21PileRef.current) {
+      hasInitialized21PileRef.current = true;
+      prev21PileCardIdRef.current = currId;
+      return;
+    }
+    const prevId = prev21PileCardIdRef.current;
+    prev21PileCardIdRef.current = currId;
+    if (prevId && currId && prevId !== currId) {
+      flipAnim.setValue(0);
+      Animated.timing(flipAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [personalPileTop?.id, flipAnim]);
 
   const isCardSelected = (source: CardSource, index: number): boolean => {
     if (!selectedCard) return false;
@@ -163,14 +189,46 @@ export function PlayerAreaHorizontal({
       <View style={styles.mainRow}>
         {/* 21-Pile */}
         <View style={styles.pileSection} accessibilityLabel={language === 'he' ? `ערימת 21 עם ${personalPileSize} קלפים` : `21-pile with ${personalPileSize} cards`}>
-          <CardView
-            card={personalPileTop}
-            selected={isCurrentPlayer && isCardSelected(CardSource.PERSONAL_PILE, 0)}
-            onPress={isCurrentPlayer ? () => personalPileTop && handleCardPress(personalPileTop, CardSource.PERSONAL_PILE, 0) : undefined}
-            disabled={!isCurrentPlayer || !personalPileTop}
-            showCount={personalPileSize}
-            compact={position === 'top' || !isCurrentPlayer}
-          />
+          <View>
+            {/* Static pile background - visible when top card is being dragged */}
+            {isDragging21Pile && personalPileSize > 1 && (
+              <View style={{ position: 'absolute' }} pointerEvents="none">
+                <CardView
+                  card={null}
+                  faceDown={true}
+                  showCount={personalPileSize - 1}
+                  compact={position === 'top' || !isCurrentPlayer}
+                  disabled={true}
+                />
+              </View>
+            )}
+            <Animated.View style={!isDragging21Pile ? {
+              transform: [
+                { perspective: 800 },
+                { rotateY: flipAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['90deg', '0deg'],
+                  })
+                },
+              ],
+            } : undefined}>
+              <CardView
+                key={personalPileTop?.id || 'empty-pile'}
+                card={personalPileTop}
+                selected={isCurrentPlayer && isCardSelected(CardSource.PERSONAL_PILE, 0)}
+                onPress={isCurrentPlayer ? () => personalPileTop && handleCardPress(personalPileTop, CardSource.PERSONAL_PILE, 0) : undefined}
+                disabled={!isCurrentPlayer || !personalPileTop}
+                showCount={isDragging21Pile ? undefined : personalPileSize}
+                compact={position === 'top' || !isCurrentPlayer}
+                draggable={isCurrentPlayer && !!personalPileTop && !!onCardDragEnd}
+                onDragStart={() => setIsDragging21Pile(true)}
+                onDragEnd={onCardDragEnd && personalPileTop ? (dx: number, dy: number, moveX: number, moveY: number) => {
+                  setIsDragging21Pile(false);
+                  onCardDragEnd(personalPileTop!, CardSource.PERSONAL_PILE, 0, dx, dy, moveX, moveY);
+                } : undefined}
+              />
+            </Animated.View>
+          </View>
           <Text style={styles.label} accessibilityRole="text">{t.pile21}</Text>
         </View>
 
@@ -193,6 +251,7 @@ export function PlayerAreaHorizontal({
                 isCardSelected={isCardSelected}
                 playerName={player.name}
                 newlyDrawnCards={newlyDrawnCards}
+                onCardDragEnd={onCardDragEnd}
               />
             </>
           ) : (
@@ -220,6 +279,7 @@ export function PlayerAreaHorizontal({
         compact={isDesktop || position === 'top' || !isCurrentPlayer}
         horizontal={true}
         language={language}
+        onCardDragEnd={isCurrentPlayer ? onCardDragEnd : undefined}
       />
     </View>
   );
@@ -297,7 +357,8 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean, isDesktop:
     gap: isSmallScreen ? SPACING.MAIN_ROW_GAP_SMALL : isLargeScreen ? SPACING.MAIN_ROW_GAP_LARGE : SPACING.MAIN_ROW_GAP_DEFAULT,
     marginBottom: isSmallScreen ? SPACING.MAIN_ROW_MARGIN_SMALL : isLargeScreen ? SPACING.MAIN_ROW_MARGIN_LARGE : SPACING.MAIN_ROW_MARGIN_DEFAULT,
     flexWrap: 'nowrap',
-    zIndex: 0, // Create stacking context so hand card z-index doesn't block storage below
+    zIndex: 2,
+    overflow: 'visible' as const,
   },
   pileSection: {
     alignItems: 'center',

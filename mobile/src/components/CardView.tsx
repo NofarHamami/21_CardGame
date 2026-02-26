@@ -24,7 +24,7 @@ interface CardViewProps {
   showCount?: number;
   draggable?: boolean;
   onDragStart?: () => void;
-  onDragEnd?: (dx: number, dy: number) => void;
+  onDragEnd?: (dx: number, dy: number, moveX: number, moveY: number) => void;
 }
 
 export function CardView({
@@ -48,34 +48,49 @@ export function CardView({
   const fontSize = compact ? FONT_SIZES.CARD_COMPACT : FONT_SIZES.CARD_DEFAULT;
   const centerSize = compact ? 24 : 36;
 
-  // Drag-and-drop support
+  // Drag-and-drop support - use refs to avoid stale closures
   const pan = useRef(new Animated.ValueXY()).current;
   const isDragging = useRef(false);
+  const onDragEndRef = useRef(onDragEnd);
+  const onDragStartRef = useRef(onDragStart);
+  const onPressRef = useRef(onPress);
+  const draggableRef = useRef(draggable);
+  const disabledRef = useRef(disabled);
+  onDragEndRef.current = onDragEnd;
+  onDragStartRef.current = onDragStart;
+  onPressRef.current = onPress;
+  draggableRef.current = draggable;
+  disabledRef.current = disabled;
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => draggable && !disabled,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return draggable && !disabled && (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5);
+        return !!draggableRef.current && !disabledRef.current &&
+          (Math.abs(gestureState.dx) > 8 || Math.abs(gestureState.dy) > 8);
       },
       onPanResponderGrant: () => {
-        isDragging.current = false;
+        isDragging.current = true;
         pan.setOffset({ x: (pan.x as any)._value || 0, y: (pan.y as any)._value || 0 });
         pan.setValue({ x: 0, y: 0 });
-        onDragStart?.();
+        onDragStartRef.current?.();
       },
-      onPanResponderMove: (_, gestureState) => {
-        if (Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5) {
-          isDragging.current = true;
-        }
-        Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false })(_, gestureState);
-      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
       onPanResponderRelease: (_, gestureState) => {
         pan.flattenOffset();
-        if (isDragging.current && onDragEnd) {
-          onDragEnd(gestureState.dx, gestureState.dy);
-        } else if (!isDragging.current) {
-          onPress?.();
+        if (isDragging.current && onDragEndRef.current) {
+          onDragEndRef.current(gestureState.dx, gestureState.dy, gestureState.moveX, gestureState.moveY);
+        }
+        Animated.spring(pan, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false,
+        }).start();
+        isDragging.current = false;
+      },
+      onPanResponderTerminate: (_, gestureState) => {
+        pan.flattenOffset();
+        if (isDragging.current && onDragEndRef.current) {
+          onDragEndRef.current(gestureState.dx, gestureState.dy, gestureState.moveX, gestureState.moveY);
         }
         Animated.spring(pan, {
           toValue: { x: 0, y: 0 },
@@ -119,7 +134,7 @@ export function CardView({
       return `#${f(0)}${f(8)}${f(4)}`;
     };
 
-    const gradientColors = [colors.secondary, hslToHex(145, 40, 20), hslToHex(145, 50, 12)];
+    const gradientColors = [colors.secondary, hslToHex(145, 40, 20), hslToHex(145, 50, 12)] as const;
 
     return (
       <TouchableOpacity
@@ -158,14 +173,14 @@ export function CardView({
   const cardLabel = `${rankSymbol} of ${suitSymbol}${showCount ? `, ${showCount} cards` : ''}`;
   const isInteractive = !disabled && !!onPress;
 
-  // Wrap in Animated.View for drag support
+  // Wrap in Animated.View for drag support - taps go through TouchableOpacity normally
   if (draggable && !disabled) {
     return (
       <Animated.View
         style={[{ transform: pan.getTranslateTransform() }, selected && { zIndex: 100 }]}
         {...panResponder.panHandlers}
       >
-        <View
+        <TouchableOpacity
           style={[
             styles.card,
             styles.faceUpCard,
@@ -174,6 +189,9 @@ export function CardView({
             disabled && styles.disabledCard,
             style,
           ]}
+          onPress={onPress}
+          disabled={disabled || !onPress}
+          activeOpacity={0.7}
           accessibilityRole={isInteractive ? 'button' : undefined}
           accessibilityLabel={cardLabel}
           accessibilityState={{ disabled: disabled || !onPress, selected }}
@@ -194,7 +212,7 @@ export function CardView({
               <Text style={styles.countText} numberOfLines={1}>{showCount}</Text>
             </View>
           )}
-        </View>
+        </TouchableOpacity>
       </Animated.View>
     );
   }

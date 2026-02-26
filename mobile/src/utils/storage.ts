@@ -4,6 +4,12 @@ import { Platform } from 'react-native';
 const PLAYER_NAME_KEY = '@player_name';
 const PLAYER_AVATAR_KEY = '@player_avatar';
 const LANGUAGE_KEY = '@language';
+const MUTE_KEY = '@mute_preference';
+const VOLUME_KEY = '@volume_preference';
+const AI_DIFFICULTY_KEY = '@ai_difficulty';
+const FIRST_LAUNCH_KEY = '@first_launch_done';
+const REDUCE_MOTION_KEY = '@reduce_motion';
+const THEME_KEY = '@theme_preference';
 
 export interface PlayerPreferences {
   name: string;
@@ -188,4 +194,129 @@ export async function loadLanguagePreference(): Promise<'he' | 'en'> {
     console.error('Error loading language preference:', error);
     return 'he';
   }
+}
+
+/**
+ * Save mute preference
+ */
+export async function saveMutePreference(muted: boolean): Promise<void> {
+  try {
+    const storage = getStorage();
+    await storage.setItem(MUTE_KEY, muted ? 'true' : 'false');
+  } catch (error) {
+    console.error('Error saving mute preference:', error);
+  }
+}
+
+/**
+ * Load mute preference
+ */
+export async function loadMutePreference(): Promise<boolean> {
+  try {
+    const storage = getStorage();
+    const value = await storage.getItem(MUTE_KEY);
+    return value === 'true';
+  } catch (error) {
+    console.error('Error loading mute preference:', error);
+    return false;
+  }
+}
+
+export async function saveVolumePreference(volume: number): Promise<void> {
+  try {
+    const storage = getStorage();
+    await storage.setItem(VOLUME_KEY, volume.toString());
+  } catch (error) {
+    console.error('Error saving volume preference:', error);
+  }
+}
+
+export async function loadVolumePreference(): Promise<number> {
+  try {
+    const storage = getStorage();
+    const value = await storage.getItem(VOLUME_KEY);
+    if (value != null) {
+      const parsed = parseFloat(value);
+      if (!isNaN(parsed)) return Math.max(0, Math.min(1, parsed));
+    }
+    return 1.0;
+  } catch (error) {
+    console.error('Error loading volume preference:', error);
+    return 1.0;
+  }
+}
+
+export type AIDifficulty = 'easy' | 'medium' | 'hard';
+
+/**
+ * Save AI difficulty preference
+ */
+export async function saveAIDifficulty(difficulty: AIDifficulty): Promise<void> {
+  try {
+    const storage = getStorage();
+    await storage.setItem(AI_DIFFICULTY_KEY, difficulty);
+  } catch (error) {
+    console.error('Error saving AI difficulty:', error);
+  }
+}
+
+/**
+ * Load AI difficulty preference
+ */
+export async function loadAIDifficulty(): Promise<AIDifficulty> {
+  try {
+    const storage = getStorage();
+    const value = await storage.getItem(AI_DIFFICULTY_KEY);
+    return (value === 'easy' || value === 'medium' || value === 'hard') ? value : 'medium';
+  } catch (error) {
+    console.error('Error loading AI difficulty:', error);
+    return 'medium';
+  }
+}
+
+export async function isFirstLaunch(): Promise<boolean> {
+  try {
+    const storage = getStorage();
+    const value = await storage.getItem(FIRST_LAUNCH_KEY);
+    return value !== 'true';
+  } catch { return true; }
+}
+
+export async function markFirstLaunchDone(): Promise<void> {
+  try {
+    const storage = getStorage();
+    await storage.setItem(FIRST_LAUNCH_KEY, 'true');
+  } catch { /* ignore */ }
+}
+
+export async function saveReduceMotion(enabled: boolean): Promise<void> {
+  try {
+    const storage = getStorage();
+    await storage.setItem(REDUCE_MOTION_KEY, enabled ? 'true' : 'false');
+  } catch { /* ignore */ }
+}
+
+export async function loadReduceMotion(): Promise<boolean> {
+  try {
+    const storage = getStorage();
+    const value = await storage.getItem(REDUCE_MOTION_KEY);
+    return value === 'true';
+  } catch { return false; }
+}
+
+export type ThemePreset = 'classic' | 'blue' | 'purple' | 'red';
+
+export async function saveThemePreference(theme: ThemePreset): Promise<void> {
+  try {
+    const storage = getStorage();
+    await storage.setItem(THEME_KEY, theme);
+  } catch { /* ignore */ }
+}
+
+export async function loadThemePreference(): Promise<ThemePreset> {
+  try {
+    const storage = getStorage();
+    const value = await storage.getItem(THEME_KEY);
+    return (value === 'classic' || value === 'blue' || value === 'purple' || value === 'red') ? value : 'classic';
+  } catch { return 'classic'; }
 }

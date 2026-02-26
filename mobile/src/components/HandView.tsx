@@ -23,8 +23,9 @@ interface HandViewProps {
   isCurrentPlayer: boolean;
   showHandCards: boolean;
   isCardSelected: (source: CardSource, index: number) => boolean;
-  playerName?: string; // Track player to detect turn changes
-  newlyDrawnCards?: Card[]; // Cards that were just drawn from stock (should animate)
+  playerName?: string;
+  newlyDrawnCards?: Card[];
+  onCardDragEnd?: (card: Card, source: CardSource, sourceIndex: number, dx: number, dy: number, moveX: number, moveY: number) => void;
 }
 
 /**
@@ -39,7 +40,10 @@ export function HandView({
   isCardSelected,
   playerName,
   newlyDrawnCards = [],
+  onCardDragEnd,
 }: HandViewProps) {
+  const [draggingCardId, setDraggingCardId] = React.useState<string | null>(null);
+
   // Track previous cards to detect newly added ones
   const prevCardsRef = useRef<Card[]>([]);
   const prevHandSizeRef = useRef<number>(0);
@@ -747,9 +751,10 @@ export function HandView({
             }
             
             // Use static values - NO animation
-            const opacity = 1; // Always fully visible
-            const translateY = archHeight; // Stay at arch position
-            const scale = 1; // Normal size
+            const isDragging = draggingCardId === card.id;
+            const opacity = 1;
+            const translateY = isDragging ? 0 : archHeight;
+            const scale = isDragging ? 1.1 : 1;
             
             return (
               <View
@@ -761,11 +766,13 @@ export function HandView({
                     opacity,
                     transform: [
                       { translateY },
-                      { rotate: `${rotationDegrees}deg` },
+                      { rotate: isDragging ? '0deg' : `${rotationDegrees}deg` },
                       { scale },
                     ],
+                    zIndex: isDragging ? 100 : undefined,
+                    elevation: isDragging ? 8 : undefined,
                   },
-                  isCardSelected(CardSource.HAND, index) && styles.handCardSelected,
+                  !isDragging && isCardSelected(CardSource.HAND, index) && styles.handCardSelected,
                 ]}
               >
                 <CardView
@@ -773,6 +780,12 @@ export function HandView({
                   faceDown={!showHandCards}
                   selected={isCardSelected(CardSource.HAND, index)}
                   onPress={() => onSelectCard(card, CardSource.HAND, index)}
+                  draggable={isCurrentPlayer && showHandCards && !!onCardDragEnd}
+                  onDragStart={() => setDraggingCardId(card.id)}
+                  onDragEnd={onCardDragEnd ? (dx: number, dy: number, moveX: number, moveY: number) => {
+                    setDraggingCardId(null);
+                    onCardDragEnd(card, CardSource.HAND, index, dx, dy, moveX, moveY);
+                  } : undefined}
                 />
               </View>
             );
@@ -808,6 +821,8 @@ export function HandView({
           
           logger.debug(`HandView: Render - Rendering NEW card ${card.id}`);
 
+          const isDraggingNew = draggingCardId === card.id;
+
           return (
             <Animated.View
               key={card.id}
@@ -815,14 +830,16 @@ export function HandView({
                 styles.handCardWrapper,
                 {
                   marginLeft: finalOverlap,
-                  opacity,
+                  opacity: isDraggingNew ? 1 : opacity,
                   transform: [
-                    { translateY },
-                    { rotate: `${rotationDegrees}deg` },
-                    { scale },
+                    { translateY: isDraggingNew ? 0 : translateY },
+                    { rotate: isDraggingNew ? '0deg' : `${rotationDegrees}deg` },
+                    { scale: isDraggingNew ? 1.1 : scale },
                   ],
+                  zIndex: isDraggingNew ? 100 : undefined,
+                  elevation: isDraggingNew ? 8 : undefined,
                 },
-                isCardSelected(CardSource.HAND, index) && styles.handCardSelected,
+                !isDraggingNew && isCardSelected(CardSource.HAND, index) && styles.handCardSelected,
               ]}
             >
               <CardView
@@ -830,6 +847,12 @@ export function HandView({
                 faceDown={!showHandCards}
                 selected={isCardSelected(CardSource.HAND, index)}
                 onPress={() => onSelectCard(card, CardSource.HAND, index)}
+                draggable={isCurrentPlayer && showHandCards && !!onCardDragEnd}
+                onDragStart={() => setDraggingCardId(card.id)}
+                onDragEnd={onCardDragEnd ? (dx: number, dy: number, moveX: number, moveY: number) => {
+                  setDraggingCardId(null);
+                  onCardDragEnd(card, CardSource.HAND, index, dx, dy, moveX, moveY);
+                } : undefined}
               />
             </Animated.View>
           );

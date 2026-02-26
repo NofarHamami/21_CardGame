@@ -53,7 +53,7 @@ import { logger } from '../utils/logger';
 export type GameEvent =
   | { type: 'GAME_STARTED' }
   | { type: 'TURN_CHANGED'; player: Player }
-  | { type: 'CARD_PLAYED'; player: Player; card: Card; destination: string }
+  | { type: 'CARD_PLAYED'; player: Player; card: Card; destination: string; source: CardSource; sourceIndex: number }
   | { type: 'HAND_REFILLED'; player: Player; cardsDrawn: number; cards: Card[]; skipStockAnimation?: boolean }
   | { type: 'PILE_COMPLETED'; pileIndex: number; cardsReturned: number }
   | { type: 'GAME_OVER'; winner: Player }
@@ -86,6 +86,8 @@ export interface GameState {
   playedToCenterThisTurn: boolean;
   /** The last game event that occurred */
   lastEvent: GameEvent | null;
+  /** AI difficulty level */
+  aiDifficulty?: 'easy' | 'medium' | 'hard';
 }
 
 /**
@@ -108,6 +110,7 @@ export function createInitialState(): GameState {
     cardsPlayedThisTurn: 0,
     playedToCenterThisTurn: false,
     lastEvent: null,
+    aiDifficulty: 'medium',
   };
 }
 
@@ -126,7 +129,7 @@ export interface PlayerConfig {
  * @param playerConfigs Optional array of player configurations (name and avatar). 
  *                     If not provided, default names will be used.
  */
-export function setupGame(numPlayers: number, playerConfigs?: PlayerConfig[]): GameState {
+export function setupGame(numPlayers: number, playerConfigs?: PlayerConfig[], aiDifficulty?: 'easy' | 'medium' | 'hard'): GameState {
   if (numPlayers < MIN_PLAYERS || numPlayers > MAX_PLAYERS) {
     throw new Error(`Number of players must be between ${MIN_PLAYERS} and ${MAX_PLAYERS}`);
   }
@@ -218,6 +221,7 @@ export function setupGame(numPlayers: number, playerConfigs?: PlayerConfig[]): G
     cardsPlayedThisTurn: 0,
     playedToCenterThisTurn: false,
     lastEvent: { type: 'GAME_STARTED' },
+    aiDifficulty: aiDifficulty || 'medium',
   };
 }
 
@@ -514,7 +518,7 @@ export function playToCenter(
     ...newState,
     cardsPlayedThisTurn: newCardsPlayed,
     playedToCenterThisTurn: true,
-    lastEvent: { type: 'CARD_PLAYED', player, card, destination: `Center Pile ${centerPileIndex + 1}` },
+    lastEvent: { type: 'CARD_PLAYED', player, card, destination: `Center Pile ${centerPileIndex + 1}`, source, sourceIndex },
   };
 
   // Check if pile is complete (reached Queen) - return cards to stock and shuffle
@@ -642,7 +646,7 @@ export function playToStorage(
   newState = {
     ...newState,
     cardsPlayedThisTurn: newState.cardsPlayedThisTurn + 1,
-    lastEvent: { type: 'CARD_PLAYED', player, card, destination: `Storage ${storageIndex + 1}` },
+    lastEvent: { type: 'CARD_PLAYED', player, card, destination: `Storage ${storageIndex + 1}`, source, sourceIndex },
   };
 
   // Check for win condition (unlikely from storage, but check anyway)
@@ -700,6 +704,39 @@ export function canEndTurn(state: GameState): boolean {
   if (!state.gameStarted || state.gameOver) return false;
   const player = state.players[state.currentPlayerIndex];
   return state.cardsPlayedThisTurn > 0 && !isHandFull(player);
+}
+
+/**
+ * Force end the turn when the timer expires and the player hasn't made a valid move.
+ * Automatically moves the first hand card to the best available storage slot,
+ * which ends the turn via nextTurn. Falls back to a plain turn advance if the
+ * player has no hand cards.
+ */
+export function forceEndTurnOnTimeout(state: GameState): GameState {
+  if (!state.gameStarted || state.gameOver) return state;
+
+  if (canEndTurn(state)) {
+    return endTurn(state);
+  }
+
+  const player = state.players[state.currentPlayerIndex];
+
+  if (player.hand.length > 0) {
+    let storageIndex = 0;
+    for (let i = 0; i < STORAGE_STACKS; i++) {
+      if (player.storage[i].length === 0) {
+        storageIndex = i;
+        break;
+      }
+    }
+
+    const result = playToStorage(state, CardSource.HAND, 0, storageIndex);
+    if (result.lastEvent?.type !== 'INVALID_MOVE') {
+      return result;
+    }
+  }
+
+  return nextTurn(state);
 }
 
 /**

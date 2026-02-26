@@ -39,6 +39,7 @@ interface CenterAreaProps {
   cardsPlayedThisTurn: number;
   stockRef?: React.RefObject<View | null>;
   isAITurn?: boolean;
+  completedPileIndex?: number | null;
 }
 
 export function CenterArea({
@@ -50,6 +51,7 @@ export function CenterArea({
   cardsPlayedThisTurn,
   stockRef,
   isAITurn = false,
+  completedPileIndex = null,
 }: CenterAreaProps) {
   const [language, setLanguage] = useState<Language>('he');
 
@@ -66,6 +68,48 @@ export function CenterArea({
   const isSmallScreen = screenWidth < 375;
   const isLargeScreen = screenWidth >= 768;
   const styles = React.useMemo(() => createStyles(isSmallScreen, isLargeScreen), [isSmallScreen, isLargeScreen]);
+
+  const pulseAnim = React.useRef(new Animated.Value(0.4)).current;
+  const hasValidTargets = React.useMemo(() => {
+    if (!selectedCard) return false;
+    return centerPiles.some((pile) => !isPileComplete(pile) && canPlaceOnPile(pile, selectedCard.card));
+  }, [selectedCard, centerPiles]);
+
+  React.useEffect(() => {
+    if (hasValidTargets) {
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+        ])
+      );
+      animation.start();
+      return () => animation.stop();
+    } else {
+      pulseAnim.setValue(0.4);
+    }
+  }, [hasValidTargets, pulseAnim]);
+
+  const celebrateScale = React.useRef(new Animated.Value(0)).current;
+  const celebrateOpacity = React.useRef(new Animated.Value(0)).current;
+  const [celebratingPile, setCelebratingPile] = React.useState<number | null>(null);
+  const lastCelebratedRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    if (completedPileIndex != null && completedPileIndex !== lastCelebratedRef.current) {
+      lastCelebratedRef.current = completedPileIndex;
+      setCelebratingPile(completedPileIndex);
+      celebrateScale.setValue(0.3);
+      celebrateOpacity.setValue(1);
+      Animated.parallel([
+        Animated.timing(celebrateScale, { toValue: 3, duration: 800, useNativeDriver: true }),
+        Animated.timing(celebrateOpacity, { toValue: 0, duration: 800, useNativeDriver: true }),
+      ]).start(() => setCelebratingPile(null));
+    }
+    if (completedPileIndex == null) {
+      lastCelebratedRef.current = null;
+    }
+  }, [completedPileIndex, celebrateScale, celebrateOpacity]);
 
   return (
     <View style={styles.container}>
@@ -112,6 +156,28 @@ export function CenterArea({
                   accessibilityLabel={`Pile ${index + 1}, needs ${expectedRank}`}
                   accessibilityState={{ disabled: !canPlay }}
                 >
+                  {isValidTarget && (
+                    <Animated.View
+                      style={[styles.validTargetGlow, { opacity: pulseAnim }]}
+                      pointerEvents="none"
+                    />
+                  )}
+                  {celebratingPile === index && (
+                    <View style={styles.celebrationContainer} pointerEvents="none">
+                      <Animated.View
+                        style={[styles.celebrationBurst, {
+                          transform: [{ scale: celebrateScale }],
+                          opacity: celebrateOpacity,
+                        }]}
+                      />
+                      <Animated.View
+                        style={[styles.celebrationRing, {
+                          transform: [{ scale: celebrateScale }],
+                          opacity: celebrateOpacity,
+                        }]}
+                      />
+                    </View>
+                  )}
                   {topCard ? (
                     <View pointerEvents="none">
                       <CardView
@@ -222,6 +288,36 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     shadowOpacity: 0.6,
     shadowRadius: 8,
     elevation: 6,
+  },
+  validTargetGlow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.gold,
+    backgroundColor: `${colors.gold}15`,
+  },
+  celebrationContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'visible',
+    zIndex: 100,
+  },
+  celebrationBurst: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.gold,
+  },
+  celebrationRing: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: colors.goldLight,
+    backgroundColor: 'transparent',
   },
   emptyPile: {
     width: 80,

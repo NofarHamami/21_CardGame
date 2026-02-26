@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Modal,
   Dimensions,
   BackHandler,
@@ -11,8 +12,17 @@ import {
   LayoutChangeEvent,
   SafeAreaView,
   Animated,
+  GestureResponderEvent,
 } from 'react-native';
-import { Card, CardSource, Player } from '../models';
+import { Card, CardSource, Player, STORAGE_STACKS } from '../models';
+import { MAX_HAND_SIZE } from '../models/Player';
+import {
+  CARD_DIMENSIONS,
+  CARD_LAYOUT,
+  HAND_RESERVED_SPACE,
+  SCREEN_BREAKPOINTS,
+  SPACING,
+} from '../constants';
 import { UseGameEngineReturn } from '../hooks/useGameEngine';
 import PlayerArea from './PlayerArea';
 import CenterArea from './CenterArea';
@@ -22,8 +32,11 @@ import { useStockToHandAnimation } from '../hooks/useStockToHandAnimation';
 import { StockToHandAnimation } from './StockToHandAnimation';
 import { SettingsMenu } from './SettingsMenu';
 import { ConfettiAnimation } from './ConfettiAnimation';
-import { loadLanguagePreference } from '../utils/storage';
-import { isMuted, setMuted } from '../utils/sounds';
+import { CardPlayAnimation } from './CardPlayAnimation';
+import { Tutorial } from './Tutorial';
+import { loadLanguagePreference, loadMutePreference, loadVolumePreference, loadReduceMotion, loadThemePreference } from '../utils/storage';
+import { isMuted, setMuted, getVolume, setVolume, playVolumePreview, setReduceMotion, isReduceMotionEnabled } from '../utils/sounds';
+import { setActiveTheme, ThemePresetName } from '../theme/colors';
 import { logger } from '../utils/logger';
 
 type Language = 'he' | 'en';
@@ -48,6 +61,107 @@ const translations = {
     playAgain: 'Play Again',
   },
 };
+
+const errorTranslations: Record<string, string> = {
+  'Cannot move cards between storage stacks. Play cards from storage to center piles instead.':
+    'לא ניתן להעביר קלפים בין ערימות אחסון. שחק קלפים מהאחסון לערימות המרכזיות.',
+  'Cannot play to storage after playing to center piles. End your turn or continue playing to center piles.':
+    'לא ניתן לשחק לאחסון לאחר ששיחקת לערימות המרכזיות. סיים את התור או המשך לשחק לערימות המרכזיות.',
+  'Cards from your 21-pile can only be played to center piles, not storage.':
+    'קלפים מערימת 21 שלך ניתנים לשחק רק לערימות המרכזיות, לא לאחסון.',
+  'No card at that position. Please select a valid card.':
+    'אין קלף במיקום זה. בחר קלף תקין.',
+  'Game has not started. Please start a new game.':
+    'המשחק לא התחיל. התחל משחק חדש.',
+  'Game is over. Please start a new game to continue playing.':
+    'המשחק נגמר. התחל משחק חדש כדי להמשיך לשחק.',
+  'You must play at least 1 card before ending your turn.':
+    'עליך לשחק לפחות קלף אחד לפני סיום התור.',
+  'You cannot end your turn with 5 cards in hand. Play or store a card first.':
+    'לא ניתן לסיים את התור עם 5 קלפים ביד. שחק או אחסן קלף קודם.',
+};
+
+function translateError(message: string, language: string): string {
+  if (language === 'he') {
+    if (errorTranslations[message]) return errorTranslations[message];
+    const match = message.match(/^Cannot place (.+?) on pile (\d+)\. This pile needs a (.+?)( \(top card is (.+?)\))?\.$/);
+    if (match) {
+      const [, cardVal, pileNum, expectedRank, , topCardInfo] = match;
+      const cardName = cardVal === 'King' ? 'מלך' : cardVal;
+      const expectedName = expectedRank === 'King' ? 'מלך' : expectedRank;
+      if (topCardInfo) {
+        const topName = topCardInfo === 'King (acting as wild)' ? 'מלך (ג\'וקר)' : topCardInfo;
+        return `לא ניתן להניח ${cardName} על ערימה ${pileNum}. ערימה זו צריכה ${expectedName} (הקלף העליון הוא ${topName}).`;
+      }
+      return `לא ניתן להניח ${cardName} על ערימה ${pileNum}. ערימה זו צריכה ${expectedName}.`;
+    }
+  }
+  return message;
+}
+
+/**
+ * Approximates the screen position of a card in the player's hand,
+ * replicating the overlap/arch math from HandView.
+ */
+function estimateHandCardPosition(
+  sourceIndex: number,
+  handSize: number,
+  playerPosition: 'top' | 'bottom' | 'left' | 'right',
+  screenWidth: number,
+  screenHeight: number,
+): { x: number; y: number } {
+  const cardW = CARD_DIMENSIONS.WIDTH;
+  const isSmallScreen = screenWidth < SCREEN_BREAKPOINTS.SMALL;
+  const isLargeScreen = screenWidth >= SCREEN_BREAKPOINTS.LARGE;
+
+  const reservedSpace = isSmallScreen
+    ? HAND_RESERVED_SPACE.SMALL_SCREEN
+    : isLargeScreen
+    ? HAND_RESERVED_SPACE.LARGE_SCREEN
+    : HAND_RESERVED_SPACE.DEFAULT;
+  const availableWidth = Math.max(HAND_RESERVED_SPACE.MIN_WIDTH, screenWidth - reservedSpace);
+  const cardVisibleWidth = CARD_LAYOUT.VISIBLE_WIDTH;
+  const totalNeededWidth = handSize * cardVisibleWidth;
+
+  let overlap: number = CARD_LAYOUT.DEFAULT_OVERLAP;
+  if (totalNeededWidth > availableWidth && handSize > 1) {
+    const extra = totalNeededWidth - availableWidth;
+    overlap = CARD_LAYOUT.DEFAULT_OVERLAP - extra / Math.max(1, handSize - 1);
+    overlap = Math.max(CARD_LAYOUT.MIN_OVERLAP, Math.min(CARD_LAYOUT.MAX_OVERLAP, overlap));
+  } else if (isSmallScreen) {
+    overlap = CARD_LAYOUT.SMALL_SCREEN_OVERLAP;
+  } else if (isLargeScreen && handSize <= MAX_HAND_SIZE) {
+    overlap = CARD_LAYOUT.LARGE_SCREEN_OVERLAP;
+  }
+
+  const effectiveCardWidth = cardW + overlap;
+  const totalHandWidth = cardW + Math.max(0, handSize - 1) * effectiveCardWidth;
+
+  // The hand row is centered inside its section (flex:1) which sits next to
+  // the 21-pile section (~90 px + gap).  The whole PlayerAreaHorizontal is
+  // centered on screen, so the hand center ≈ screenWidth/2 shifted right
+  // by half the pile-section width.
+  const gap = isSmallScreen
+    ? SPACING.MAIN_ROW_GAP_SMALL
+    : isLargeScreen
+    ? SPACING.MAIN_ROW_GAP_LARGE
+    : SPACING.MAIN_ROW_GAP_DEFAULT;
+  const pileOffset = (90 + gap) / 2;
+  const handCenterX = screenWidth / 2 + pileOffset;
+  const handStartX = handCenterX - totalHandWidth / 2;
+  const cardX = handStartX + sourceIndex * effectiveCardWidth;
+
+  let cardY: number;
+  switch (playerPosition) {
+    case 'top':    cardY = 100;  break;
+    case 'bottom': cardY = screenHeight - 220; break;
+    case 'left':   cardY = screenHeight / 2 - CARD_DIMENSIONS.HEIGHT / 2; break;
+    case 'right':  cardY = screenHeight / 2 - CARD_DIMENSIONS.HEIGHT / 2; break;
+    default:       cardY = screenHeight - 220;
+  }
+
+  return { x: cardX, y: cardY };
+}
 
 interface GameBoardProps {
   gameEngine: UseGameEngineReturn;
@@ -88,8 +202,15 @@ const getResponsiveStyles = (screenWidth: number, screenHeight: number) => {
 
 export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [tutorialVisible, setTutorialVisible] = useState(false);
   const [language, setLanguage] = useState<Language>('he');
   const [soundMuted, setSoundMuted] = useState(isMuted());
+  const [currentVolume, setCurrentVolume] = useState(getVolume());
+  const [volumePopupVisible, setVolumePopupVisible] = useState(false);
+  const [sliderTrackWidth, setSliderTrackWidth] = useState(0);
+  const volumeHideTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewThrottleRef = React.useRef<number>(0);
+  const middleRowRef = React.useRef<View>(null);
   const [middleRowHeight, setMiddleRowHeight] = useState(() => {
     const dims = getScreenDimensions();
     return Math.max(150, dims.height - 500);
@@ -100,6 +221,16 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
 
   useEffect(() => {
     loadLanguagePreference().then(lang => setLanguage(lang));
+    loadMutePreference().then(muted => {
+      setMuted(muted);
+      setSoundMuted(muted);
+    });
+    loadVolumePreference().then(vol => {
+      setVolume(vol);
+      setCurrentVolume(vol);
+    });
+    loadReduceMotion().then(rm => setReduceMotion(rm));
+    loadThemePreference().then(theme => setActiveTheme(theme as ThemePresetName));
   }, []);
 
   const t = translations[language];
@@ -132,6 +263,8 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
     clearSelection,
     playSelectedToCenter,
     playSelectedToStorage,
+    playDirectToCenter,
+    playDirectToStorage,
     endCurrentTurn,
     resetGame,
     updatePlayerNameAndAvatar,
@@ -169,6 +302,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
   const player4 = players[3] || null;
 
   const stockRef = React.useRef<View | null>(null);
+  const handSizeBeforePlayRef = React.useRef<number>(0);
   const { cardsToAnimate, isAnimating, onAnimationComplete } = useStockToHandAnimation(lastEvent);
 
   const getNewlyDrawnCardsForPlayer = React.useCallback((playerIndex: number): Card[] => {
@@ -193,13 +327,142 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
     }
   };
 
-  const handleToggleMute = () => {
+  const snapshotHandSize = useCallback(() => {
+    handSizeBeforePlayRef.current = currentPlayer?.hand.length ?? 0;
+  }, [currentPlayer]);
+
+  const wrappedPlaySelectedToCenter = useCallback((pileIndex: number) => {
+    snapshotHandSize();
+    playSelectedToCenter(pileIndex);
+  }, [playSelectedToCenter, snapshotHandSize]);
+
+  const handleCardDragEnd = useCallback((card: Card, source: CardSource, sourceIndex: number, dx: number, dy: number, moveX: number, moveY: number) => {
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance < 20) return;
+
+    snapshotHandSize();
+
+    const tryPlayToCenter = (): boolean => {
+      for (let i = 0; i < centerPiles.length; i++) {
+        if (playDirectToCenter(source, sourceIndex, i)) return true;
+      }
+      return false;
+    };
+
+    const tryPlayToStorage = (): boolean => {
+      const storageSlotWidth = CARD_DIMENSIONS.COMPACT_WIDTH + SPACING.GAP_SMALL;
+      const totalStorageWidth = STORAGE_STACKS * storageSlotWidth;
+      const storageStartX = (screenDims.width - totalStorageWidth) / 2;
+      const relativeX = moveX - storageStartX;
+      const storageIndex = Math.max(0, Math.min(STORAGE_STACKS - 1, Math.floor(relativeX / storageSlotWidth)));
+      return playDirectToStorage(source, sourceIndex, storageIndex);
+    };
+
+    // Storage and personal pile cards can only be played to center piles
+    if (source === CardSource.STORAGE || source === CardSource.PERSONAL_PILE) {
+      tryPlayToCenter();
+      return;
+    }
+
+    // For hand cards, use drag direction to determine intent.
+    // Player 0 (top): center is below, storage is between hand and center.
+    //   Long downward drag (dy > 150) = center intent, shorter = storage.
+    // Player 1 (bottom): center is above, storage is below hand.
+    //   Any upward drag (dy < -30) = center intent, downward/horizontal = storage.
+    const centerIntent = currentPlayerIndex === 0 ? dy > 150 : dy < -30;
+
+    if (centerIntent) {
+      if (!tryPlayToCenter()) tryPlayToStorage();
+    } else {
+      if (!tryPlayToStorage()) tryPlayToCenter();
+    }
+  }, [playDirectToCenter, playDirectToStorage, centerPiles, screenDims, currentPlayerIndex, snapshotHandSize]);
+
+  const handleToggleMute = useCallback(() => {
     const newMuted = !soundMuted;
     setSoundMuted(newMuted);
     setMuted(newMuted);
-  };
+  }, [soundMuted]);
 
-  const errorMessage = lastEvent?.type === 'INVALID_MOVE' ? lastEvent.message : null;
+  const showVolumePopup = useCallback(() => {
+    if (volumeHideTimeoutRef.current) {
+      clearTimeout(volumeHideTimeoutRef.current);
+      volumeHideTimeoutRef.current = null;
+    }
+    setVolumePopupVisible(true);
+  }, []);
+
+  const scheduleHideVolumePopup = useCallback(() => {
+    volumeHideTimeoutRef.current = setTimeout(() => {
+      setVolumePopupVisible(false);
+    }, 400);
+  }, []);
+
+  const handleVolumeSlider = useCallback((e: GestureResponderEvent) => {
+    if (sliderTrackWidth <= 0) return;
+    const locationX = Math.max(0, Math.min(e.nativeEvent.locationX, sliderTrackWidth));
+    const newVolume = Math.round((locationX / sliderTrackWidth) * 100) / 100;
+    setCurrentVolume(newVolume);
+    setVolume(newVolume);
+    if (newVolume > 0 && soundMuted) {
+      setSoundMuted(false);
+      setMuted(false);
+    }
+    const now = Date.now();
+    if (now - previewThrottleRef.current > 250) {
+      previewThrottleRef.current = now;
+      playVolumePreview();
+    }
+  }, [sliderTrackWidth, soundMuted]);
+
+  const completedPileIndex = lastEvent?.type === 'PILE_COMPLETED' ? lastEvent.pileIndex : null;
+
+  const [cardPlayAnim, setCardPlayAnim] = React.useState<{
+    card: Card;
+    playerPosition: 'top' | 'bottom' | 'left' | 'right';
+    sourceX?: number;
+    sourceY?: number;
+    key: number;
+  } | null>(null);
+  const cardPlayAnimKey = React.useRef(0);
+
+  React.useEffect(() => {
+    if (lastEvent?.type === 'CARD_PLAYED' && lastEvent.destination.startsWith('Center')) {
+      cardPlayAnimKey.current += 1;
+      const playerPos = getPlayerPosition(currentPlayerIndex);
+
+      let srcX: number | undefined;
+      let srcY: number | undefined;
+
+      if (lastEvent.source === CardSource.HAND) {
+        const handSize = handSizeBeforePlayRef.current || (currentPlayer?.hand.length ?? 0) + 1;
+        const pos = estimateHandCardPosition(
+          lastEvent.sourceIndex,
+          handSize,
+          playerPos,
+          screenWidth,
+          screenHeight,
+        );
+        srcX = pos.x;
+        srcY = pos.y;
+      }
+
+      setCardPlayAnim({
+        card: lastEvent.card,
+        playerPosition: playerPos,
+        sourceX: srcX,
+        sourceY: srcY,
+        key: cardPlayAnimKey.current,
+      });
+    }
+  }, [lastEvent, currentPlayerIndex, currentPlayer, screenWidth, screenHeight]);
+
+  const handleCardPlayAnimComplete = React.useCallback(() => {
+    setCardPlayAnim(null);
+  }, []);
+
+  const rawErrorMessage = lastEvent?.type === 'INVALID_MOVE' ? lastEvent.message : null;
+  const errorMessage = rawErrorMessage ? translateError(rawErrorMessage, language) : null;
   const [showError, setShowError] = React.useState(false);
 
   React.useEffect(() => {
@@ -233,15 +496,68 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
         <Text style={styles.settingsButtonText}>⚙️</Text>
       </TouchableOpacity>
 
-      {/* Mute Button */}
-      <TouchableOpacity
-        style={styles.muteButton}
-        onPress={handleToggleMute}
-        accessibilityRole="button"
-        accessibilityLabel={soundMuted ? 'Unmute' : 'Mute'}
+      {/* Sound Control */}
+      <View
+        style={styles.soundControlWrapper}
+        {...(Platform.OS === 'web' ? {
+          onMouseEnter: showVolumePopup,
+          onMouseLeave: scheduleHideVolumePopup,
+        } : {})}
       >
-        <Text style={styles.settingsButtonText}>{soundMuted ? '🔇' : '🔊'}</Text>
+        <Pressable
+          style={styles.muteButton}
+          onPress={handleToggleMute}
+          onLongPress={Platform.OS !== 'web' ? () => setVolumePopupVisible(v => !v) : undefined}
+          accessibilityRole="button"
+          accessibilityLabel={soundMuted ? 'Unmute' : 'Mute'}
+        >
+          <Text style={styles.settingsButtonText}>
+            {soundMuted ? '🔇' : currentVolume > 0.5 ? '🔊' : currentVolume > 0 ? '🔉' : '🔈'}
+          </Text>
+        </Pressable>
+
+        {volumePopupVisible && (
+          <View style={styles.volumePopup}>
+            <View
+              style={styles.volumeSliderTrack}
+              onLayout={(e) => setSliderTrackWidth(e.nativeEvent.layout.width)}
+              onStartShouldSetResponder={() => true}
+              onMoveShouldSetResponder={() => true}
+              onResponderGrant={handleVolumeSlider}
+              onResponderMove={handleVolumeSlider}
+            >
+              <View
+                style={[
+                  styles.volumeSliderFill,
+                  { width: `${Math.round(currentVolume * 100)}%` },
+                  soundMuted && styles.volumeSliderFillMuted,
+                ]}
+              />
+              <View
+                style={[
+                  styles.volumeSliderThumb,
+                  { left: `${Math.round(currentVolume * 100)}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.volumePercent}>
+              {soundMuted ? '🔇' : `${Math.round(currentVolume * 100)}%`}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Tutorial Button */}
+      <TouchableOpacity
+        style={styles.tutorialButton}
+        onPress={() => setTutorialVisible(true)}
+        accessibilityRole="button"
+        accessibilityLabel={language === 'he' ? 'איך משחקים?' : 'How to play'}
+      >
+        <Text style={styles.settingsButtonText}>❓</Text>
       </TouchableOpacity>
+
+      <Tutorial visible={tutorialVisible} onClose={() => setTutorialVisible(false)} language={language} />
 
       <SettingsMenu
         visible={settingsVisible}
@@ -281,12 +597,13 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                 canEndTurn={currentPlayerIndex === 0 && canEndCurrentTurn}
                 onCancelSelection={currentPlayerIndex === 0 && !isCurrentPlayerAI ? clearSelection : undefined}
                 hasSelection={currentPlayerIndex === 0 && !!selectedCard}
+                onCardDragEnd={currentPlayerIndex === 0 && !isCurrentPlayerAI ? handleCardDragEnd : undefined}
               />
             </Animated.View>
           )}
 
           {/* MIDDLE ROW */}
-          <View style={styles.middleRow} onLayout={handleMiddleRowLayout}>
+          <View style={styles.middleRow} ref={middleRowRef} onLayout={handleMiddleRowLayout}>
             {/* Left side: player3 in 4-player mode, or empty spacer in 3-player mode */}
             {player3 && !player4 && <View style={styles.leftSection} />}
             {player3 && player4 && (
@@ -313,15 +630,23 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
             )}
 
             <View style={styles.centerSection}>
+              {gameEngine.turnTimeRemaining != null && !isCurrentPlayerAI && (
+                <View style={[styles.timerContainer, gameEngine.turnTimeRemaining <= 5 && styles.timerContainerUrgent]}>
+                  <Text style={[styles.timerText, gameEngine.turnTimeRemaining <= 5 && styles.timerTextUrgent]}>
+                    {gameEngine.turnTimeRemaining}s
+                  </Text>
+                </View>
+              )}
               <CenterArea
                 centerPiles={centerPiles}
                 stockPileSize={stockPileSize}
                 selectedCard={!isCurrentPlayerAI ? selectedCard : null}
-                onPlayToCenter={!isCurrentPlayerAI ? playSelectedToCenter : () => {}}
+                onPlayToCenter={!isCurrentPlayerAI ? wrappedPlaySelectedToCenter : () => {}}
                 currentPlayerName={currentPlayer?.name || ''}
                 cardsPlayedThisTurn={cardsPlayedThisTurn}
                 stockRef={stockRef}
                 isAITurn={isCurrentPlayerAI}
+                completedPileIndex={completedPileIndex}
               />
               {isCurrentPlayerAI && (
                 <View style={styles.aiIndicator}>
@@ -397,12 +722,25 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                 canEndTurn={currentPlayerIndex === 1 && canEndCurrentTurn}
                 onCancelSelection={currentPlayerIndex === 1 && !isCurrentPlayerAI ? clearSelection : undefined}
                 hasSelection={currentPlayerIndex === 1 && !!selectedCard}
+                onCardDragEnd={currentPlayerIndex === 1 && !isCurrentPlayerAI ? handleCardDragEnd : undefined}
               />
             </Animated.View>
           )}
 
         </View>
       </SafeAreaView>
+
+      {/* Card Play Animation */}
+      {cardPlayAnim && (
+        <CardPlayAnimation
+          key={cardPlayAnim.key}
+          card={cardPlayAnim.card}
+          playerPosition={cardPlayAnim.playerPosition}
+          sourceX={cardPlayAnim.sourceX}
+          sourceY={cardPlayAnim.sourceY}
+          onComplete={handleCardPlayAnimComplete}
+        />
+      )}
 
       {/* Stock to Hand Animation */}
       {isAnimating && currentPlayer && (
@@ -496,10 +834,95 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       shadowRadius: 4,
       elevation: 8,
     },
-    muteButton: {
+    soundControlWrapper: {
       position: 'absolute',
       top: 50,
       left: 64,
+      zIndex: 1001,
+    },
+    muteButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.secondary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 8,
+      ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+    } as any,
+    volumePopup: {
+      position: 'absolute',
+      top: 46,
+      left: -8,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderWidth: 2,
+      borderColor: colors.border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      elevation: 12,
+      gap: 10,
+      width: 200,
+    },
+    volumeSliderTrack: {
+      flex: 1,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: `${colors.muted}88`,
+      justifyContent: 'center',
+      overflow: 'visible' as const,
+      ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+    } as any,
+    volumeSliderFill: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.gold,
+    },
+    volumeSliderFillMuted: {
+      backgroundColor: colors.mutedForeground,
+    },
+    volumeSliderThumb: {
+      position: 'absolute',
+      top: -4,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      backgroundColor: colors.gold,
+      marginLeft: -8,
+      borderWidth: 2,
+      borderColor: colors.background,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.3,
+      shadowRadius: 2,
+      elevation: 4,
+    },
+    volumePercent: {
+      color: colors.mutedForeground,
+      fontSize: 12,
+      fontWeight: '600',
+      minWidth: 36,
+      textAlign: 'right',
+    },
+    tutorialButton: {
+      position: 'absolute',
+      top: 50,
+      left: 112,
       width: 40,
       height: 40,
       borderRadius: 20,
@@ -617,6 +1040,29 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       color: colors.primaryForeground,
       fontSize: 14,
       fontWeight: 'bold',
+    },
+    timerContainer: {
+      backgroundColor: colors.secondary,
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignSelf: 'center',
+      marginBottom: 4,
+    },
+    timerContainerUrgent: {
+      backgroundColor: colors.destructive,
+      borderColor: colors.destructive,
+    },
+    timerText: {
+      color: colors.gold,
+      fontSize: 16,
+      fontWeight: 'bold',
+      textAlign: 'center',
+    },
+    timerTextUrgent: {
+      color: colors.primaryForeground,
     },
     aiIndicator: {
       backgroundColor: colors.secondary,

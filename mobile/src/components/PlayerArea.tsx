@@ -22,6 +22,7 @@ interface PlayerAreaProps {
   canEndTurn?: boolean;
   onCancelSelection?: () => void;
   hasSelection?: boolean;
+  onCardDragEnd?: (card: Card, source: CardSource, sourceIndex: number, dx: number, dy: number, moveX: number, moveY: number) => void;
 }
 
 /**
@@ -45,6 +46,7 @@ export function PlayerArea({
   canEndTurn = false,
   onCancelSelection,
   hasSelection = false,
+  onCardDragEnd,
 }: PlayerAreaProps) {
   const [measuredHeight, setMeasuredHeight] = useState(0);
 
@@ -91,6 +93,7 @@ export function PlayerArea({
         canEndTurn={canEndTurn}
         onCancelSelection={onCancelSelection}
         hasSelection={hasSelection}
+        onCardDragEnd={onCardDragEnd}
       />
     );
   }
@@ -158,6 +161,7 @@ export function PlayerArea({
             canEndTurn={canEndTurn}
             onCancelSelection={onCancelSelection}
             hasSelection={hasSelection}
+            onCardDragEnd={onCardDragEnd}
           />
         </View>
       </View>
@@ -182,6 +186,7 @@ export function PlayerArea({
       canEndTurn={canEndTurn}
       onCancelSelection={onCancelSelection}
       hasSelection={hasSelection}
+      onCardDragEnd={onCardDragEnd}
     />
   );
 }

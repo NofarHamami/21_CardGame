@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { logger } from './logger';
+import { saveMutePreference, saveVolumePreference } from './storage';
 
 let Haptics: typeof import('expo-haptics') | null = null;
 
@@ -15,6 +16,8 @@ async function loadHaptics() {
 }
 
 let _muted = false;
+let _volume = 1.0;
+let _reduceMotion = false;
 let _audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
@@ -28,11 +31,13 @@ function getAudioContext(): AudioContext | null {
   }
 }
 
-function playWebTone(frequency: number, duration: number, type: OscillatorType = 'sine', volume = 0.15) {
+function playWebTone(frequency: number, duration: number, type: OscillatorType = 'sine', volume = 0.15 * _volume) {
   const ctx = getAudioContext();
   if (!ctx) return;
-  // Resume context if suspended (browser autoplay policy)
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+    return;
+  }
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = type;
@@ -81,10 +86,39 @@ function playWebLose() {
 
 export function setMuted(muted: boolean) {
   _muted = muted;
+  saveMutePreference(muted);
 }
 
 export function isMuted(): boolean {
   return _muted;
+}
+
+export function setVolume(volume: number) {
+  _volume = Math.max(0, Math.min(1, volume));
+  saveVolumePreference(_volume);
+}
+
+export function playVolumePreview() {
+  if (Platform.OS === 'web') {
+    playWebTone(660, 0.12, 'sine', 0.15 * _volume);
+    setTimeout(() => playWebTone(880, 0.12, 'sine', 0.12 * _volume), 80);
+  }
+}
+
+export function getVolume(): number {
+  return _volume;
+}
+
+export function setReduceMotion(enabled: boolean) {
+  _reduceMotion = enabled;
+}
+
+export function isReduceMotionEnabled(): boolean {
+  return _reduceMotion;
+}
+
+export function setSoundMuted(muted: boolean) {
+  _muted = muted;
 }
 
 export async function playCardTapSound() {

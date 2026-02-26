@@ -5,11 +5,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../theme/colors';
 import { GameStats, loadGameStats, getWinRate, getAverageTurns } from '../utils/gameStats';
 import { loadLanguagePreference } from '../utils/storage';
+import { Achievement, loadAchievements } from '../utils/achievements';
 
 type Language = 'he' | 'en';
 
@@ -25,6 +27,8 @@ const translations = {
     avgTurns: 'תורות ממוצע',
     back: 'חזרה',
     noGames: 'עדיין לא שיחקת. התחל משחק!',
+    achievements: 'הישגים',
+    locked: 'נעול',
   },
   en: {
     title: 'Statistics',
@@ -37,6 +41,8 @@ const translations = {
     avgTurns: 'Avg Turns',
     back: 'Back',
     noGames: "You haven't played yet. Start a game!",
+    achievements: 'Achievements',
+    locked: 'Locked',
   },
 };
 
@@ -52,10 +58,12 @@ interface StatsScreenProps {
 export function StatsScreen({ navigation }: StatsScreenProps) {
   const [stats, setStats] = useState<GameStats | null>(null);
   const [language, setLanguage] = useState<Language>('he');
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
 
   useEffect(() => {
     loadLanguagePreference().then(setLanguage);
     loadGameStats().then(setStats);
+    loadAchievements().then(setAchievements);
   }, []);
 
   const t = translations[language];
@@ -83,29 +91,50 @@ export function StatsScreen({ navigation }: StatsScreenProps) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>{t.title}</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.title}>{t.title}</Text>
 
-      {stats.gamesPlayed === 0 ? (
-        <Text style={styles.noGames}>{t.noGames}</Text>
-      ) : (
-        <View style={styles.grid}>
-          {statItems.map((item, idx) => (
-            <View key={idx} style={styles.statCard}>
-              <Text style={styles.statValue}>{item.value}</Text>
-              <Text style={styles.statLabel}>{item.label}</Text>
+        {stats.gamesPlayed === 0 ? (
+          <Text style={styles.noGames}>{t.noGames}</Text>
+        ) : (
+          <View style={styles.grid}>
+            {statItems.map((item, idx) => (
+              <View key={idx} style={styles.statCard}>
+                <Text style={styles.statValue}>{item.value}</Text>
+                <Text style={styles.statLabel}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {achievements.length > 0 && (
+          <>
+            <Text style={styles.achievementsTitle}>{t.achievements}</Text>
+            <View style={styles.achievementsGrid}>
+              {achievements.map(ach => (
+                <View key={ach.id} style={[styles.achievementCard, !ach.unlocked && styles.achievementLocked]}>
+                  <Text style={styles.achievementIcon}>{ach.unlocked ? ach.icon : '🔒'}</Text>
+                  <Text style={[styles.achievementTitle, !ach.unlocked && styles.achievementTitleLocked]}>
+                    {language === 'he' ? ach.titleHe : ach.titleEn}
+                  </Text>
+                  <Text style={styles.achievementDesc}>
+                    {language === 'he' ? ach.descHe : ach.descEn}
+                  </Text>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
-      )}
+          </>
+        )}
 
-      <TouchableOpacity
-        style={styles.backBtn}
-        onPress={() => navigation.goBack()}
-        accessibilityRole="button"
-        accessibilityLabel={t.back}
-      >
-        <Text style={styles.backBtnText}>{t.back}</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel={t.back}
+        >
+          <Text style={styles.backBtnText}>{t.back}</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -114,8 +143,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scrollContent: {
     padding: 24,
     alignItems: 'center',
+    flexGrow: 1,
   },
   loading: {
     color: colors.foreground,
@@ -159,6 +191,52 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
+    color: colors.mutedForeground,
+    textAlign: 'center',
+  },
+  achievementsTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.gold,
+    marginTop: 28,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  achievementsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+    maxWidth: 500,
+  },
+  achievementCard: {
+    backgroundColor: colors.secondary,
+    borderRadius: 10,
+    padding: 12,
+    width: 110,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  achievementLocked: {
+    opacity: 0.5,
+  },
+  achievementIcon: {
+    fontSize: 28,
+    marginBottom: 4,
+  },
+  achievementTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.gold,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  achievementTitleLocked: {
+    color: colors.mutedForeground,
+  },
+  achievementDesc: {
+    fontSize: 10,
     color: colors.mutedForeground,
     textAlign: 'center',
   },

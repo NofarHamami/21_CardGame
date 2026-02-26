@@ -28,6 +28,7 @@ interface StorageViewProps {
   compact?: boolean;
   horizontal?: boolean;
   language?: Language;
+  onCardDragEnd?: (card: Card, source: CardSource, sourceIndex: number, dx: number, dy: number, moveX: number, moveY: number) => void;
 }
 
 /**
@@ -43,8 +44,10 @@ export function StorageView({
   compact = false,
   horizontal = true,
   language: propLanguage,
+  onCardDragEnd,
 }: StorageViewProps) {
   const [language, setLanguage] = useState<Language>(propLanguage || 'he');
+  const [draggingIndex, setDraggingIndex] = React.useState<number | null>(null);
 
   useEffect(() => {
     if (propLanguage) {
@@ -58,15 +61,16 @@ export function StorageView({
 
   const t = translations[language];
 
+  const showTargetHighlight = isCurrentPlayer && !!selectedCard && selectedCard.source === CardSource.HAND;
+
   const handleStoragePress = (index: number) => {
     if (!isCurrentPlayer) return;
-    if (selectedCard) {
+    const topCard = getStorageTop(player, index);
+
+    if (selectedCard && selectedCard.source === CardSource.HAND) {
       onPlayToStorage(index);
-    } else {
-      const topCard = getStorageTop(player, index);
-      if (topCard) {
-        onSelectCard(topCard, CardSource.STORAGE, index);
-      }
+    } else if (topCard) {
+      onSelectCard(topCard, CardSource.STORAGE, index);
     }
   };
 
@@ -79,15 +83,38 @@ export function StorageView({
         {Array.from({ length: STORAGE_STACKS }).map((_, index) => {
           const topCard = getStorageTop(player, index);
           const stackSize = getStorageStackSize(player, index);
+          const isDraggable = isCurrentPlayer && !!topCard && !!onCardDragEnd;
+          const isBeingDragged = draggingIndex === index;
           return (
-            <CardView
-              key={`storage-${index}`}
-              card={topCard}
-              selected={isCurrentPlayer && isCardSelected(CardSource.STORAGE, index)}
-              onPress={isCurrentPlayer ? () => handleStoragePress(index) : undefined}
-              showCount={stackSize > 1 ? stackSize : undefined}
-              compact={compact}
-            />
+            <View key={`storage-${index}`} style={showTargetHighlight && styles.storageHighlight}>
+              <View>
+                {/* Static pile background - visible when top card is being dragged */}
+                {isBeingDragged && stackSize > 1 && (
+                  <View style={{ position: 'absolute' }} pointerEvents="none">
+                    <CardView
+                      card={null}
+                      faceDown={true}
+                      showCount={stackSize - 1}
+                      compact={compact}
+                      disabled={true}
+                    />
+                  </View>
+                )}
+                <CardView
+                  card={topCard}
+                  selected={isCurrentPlayer && isCardSelected(CardSource.STORAGE, index)}
+                  onPress={isCurrentPlayer ? () => handleStoragePress(index) : undefined}
+                  showCount={isBeingDragged ? undefined : (stackSize > 1 ? stackSize : undefined)}
+                  compact={compact}
+                  draggable={isDraggable}
+                  onDragStart={() => setDraggingIndex(index)}
+                  onDragEnd={onCardDragEnd && topCard ? (dx: number, dy: number, moveX: number, moveY: number) => {
+                    setDraggingIndex(null);
+                    onCardDragEnd(topCard, CardSource.STORAGE, index, dx, dy, moveX, moveY);
+                  } : undefined}
+                />
+              </View>
+            </View>
           );
         })}
       </View>
@@ -100,6 +127,16 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     zIndex: 1, // Ensure storage is above the mainRow's stacking context
+  },
+  storageHighlight: {
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: `${colors.gold}80`,
+    shadowColor: colors.gold,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 4,
   },
   horizontalStorageRow: {
     flexDirection: 'row',

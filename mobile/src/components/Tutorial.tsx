@@ -3,10 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   Modal,
   Animated,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { colors } from '../theme/colors';
 
@@ -152,7 +153,7 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
           </Animated.View>
 
           <View style={[styles.buttons, language === 'he' && styles.buttonsRTL]}>
-            <TouchableOpacity
+            <Pressable
               style={[styles.btn, styles.btnSecondary, isFirst && styles.btnHidden]}
               onPress={handlePrev}
               disabled={isFirst || isAnimating}
@@ -162,9 +163,9 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
               <Text style={styles.btnSecondaryText}>
                 {language === 'he' ? 'הקודם' : 'Back'}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
 
-            <TouchableOpacity
+            <Pressable
               style={[styles.btn, styles.btnPrimary]}
               onPress={handleNext}
               disabled={isAnimating}
@@ -176,17 +177,17 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
                   ? (language === 'he' ? 'בואו נשחק!' : "Let's Play!")
                   : (language === 'he' ? 'הבא' : 'Next')}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
-          <TouchableOpacity
+          <Pressable
             style={styles.skipBtn}
             onPress={onClose}
             accessibilityRole="button"
             accessibilityLabel={language === 'he' ? 'דלג' : 'Skip tutorial'}
           >
             <Text style={styles.skipText}>{language === 'he' ? 'דלג' : 'Skip'}</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     </Modal>
@@ -272,7 +273,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minWidth: 100,
     alignItems: 'center',
-  },
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  } as any,
   btnPrimary: {
     backgroundColor: colors.gold,
   },
@@ -293,7 +295,8 @@ const styles = StyleSheet.create({
   },
   skipBtn: {
     marginTop: 16,
-  },
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  } as any,
   skipText: {
     color: colors.mutedForeground,
     fontSize: 14,

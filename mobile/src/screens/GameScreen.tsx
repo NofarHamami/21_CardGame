@@ -9,6 +9,8 @@ import { getPersonalPileSize, Player } from '../models/Player';
 import { loadLanguagePreference } from '../utils/storage';
 import { recordGameResult } from '../utils/gameStats';
 import { playWinSound, playLoseSound } from '../utils/sounds';
+import { checkAndUnlockAchievements } from '../utils/achievements';
+import { getCurrentMoves, saveReplay } from '../utils/gameReplay';
 
 type Language = 'he' | 'en';
 
@@ -34,8 +36,16 @@ type RootStackParamList = {
     playerAvatar?: string;
     gameMode?: 'practice' | 'private' | 'random';
     resumeState?: string;
+    aiDifficulty?: 'easy' | 'medium' | 'hard';
+    timedMode?: boolean;
   };
-  Scoreboard: { players: Array<{ name: string; avatar?: string; score: number }> };
+  Scoreboard: {
+    players: Array<{ name: string; avatar?: string; score: number; cardsRemaining: number }>;
+    turnsPlayed: number;
+    gameMode?: string;
+    numPlayers: number;
+    aiDifficulty?: string;
+  };
   WaitingRoom: { gameMode: 'random'; numPlayers: number; playerName: string; playerAvatar: string };
 };
 
@@ -54,7 +64,7 @@ function calculateScore(player: Player, rank: number, totalPlayers: number): num
 }
 
 export function GameScreen({ navigation, route }: GameScreenProps) {
-  const { numPlayers, playerName, playerAvatar, gameMode, resumeState } = route.params;
+  const { numPlayers, playerName, playerAvatar, gameMode, resumeState, aiDifficulty, timedMode } = route.params;
   const gameEngine = useGameEngine();
   const hasNavigatedToScoreboard = useRef(false);
   const hasRecordedResult = useRef(false);
@@ -101,10 +111,11 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
         avatarOffset++;
       }
 
-      gameEngine.startGame(numPlayers, playerConfigs);
+      gameEngine.startGame(numPlayers, playerConfigs, aiDifficulty || 'medium');
+      if (timedMode) gameEngine.setTimedMode(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numPlayers, playerName, playerAvatar, gameMode, language, t]);
+  }, [numPlayers, playerName, playerAvatar, gameMode, language, t, aiDifficulty, timedMode]);
 
   // Navigate to scoreboard and record stats when game ends (with delay for confetti)
   useEffect(() => {
@@ -120,7 +131,24 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
         } else {
           playLoseSound();
         }
-        recordGameResult(humanWon, gameEngine.turnCount);
+        recordGameResult(humanWon, gameEngine.turnCount).then(stats => {
+          checkAndUnlockAchievements({
+            won: humanWon,
+            turnsPlayed: gameEngine.turnCount,
+            gamesPlayed: stats.gamesPlayed,
+            gamesWon: stats.gamesWon,
+            currentWinStreak: stats.currentWinStreak,
+            usedStorage: false,
+          });
+        });
+        saveReplay({
+          id: `${Date.now()}`,
+          date: new Date().toISOString(),
+          playerNames: gameEngine.players.map(p => p.name),
+          winnerName: gameEngine.winner?.name || '',
+          moves: getCurrentMoves(),
+          totalTurns: gameEngine.turnCount,
+        });
       }
 
       const playersSortedByCards = [...gameEngine.players].sort((a, b) => {
@@ -131,11 +159,17 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
         name: player.name,
         avatar: player.avatar,
         score: calculateScore(player, index + 1, gameEngine.players.length),
+        cardsRemaining: getPersonalPileSize(player),
       }));
 
-      // Delay navigation so the confetti animation is visible
       const timer = setTimeout(() => {
-        navigation.replace('Scoreboard', { players: playersWithScores });
+        navigation.replace('Scoreboard', {
+          players: playersWithScores,
+          turnsPlayed: gameEngine.turnCount,
+          gameMode,
+          numPlayers,
+          aiDifficulty,
+        });
       }, 3500);
 
       return () => clearTimeout(timer);

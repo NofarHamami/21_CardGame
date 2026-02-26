@@ -10,7 +10,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { colors } from '../theme/colors';
-import { savePlayerPreferences, loadPlayerPreferences, loadLanguagePreference } from '../utils/storage';
+import { savePlayerPreferences, loadPlayerPreferences, loadLanguagePreference, saveReduceMotion, loadReduceMotion, saveThemePreference, loadThemePreference, ThemePreset } from '../utils/storage';
+import { isReduceMotionEnabled, setReduceMotion as setReduceMotionGlobal } from '../utils/sounds';
+import { setActiveTheme, getActiveTheme, themePresets, ThemePresetName } from '../theme/colors';
 
 type Language = 'he' | 'en';
 
@@ -33,6 +35,15 @@ const translations = {
     avatar: 'אווטאר',
     save: 'שמור',
     defaultName: 'שחקן 1',
+    accessibility: 'נגישות',
+    reduceMotion: 'הפחת אנימציות',
+    theme: 'ערכת נושא',
+    themeClassic: 'קלאסי',
+    themeBlue: 'כחול',
+    themePurple: 'סגול',
+    themeRed: 'אדום',
+    on: 'פעיל',
+    off: 'כבוי',
   },
   en: {
     title: 'Player Settings',
@@ -41,6 +52,15 @@ const translations = {
     avatar: 'Avatar',
     save: 'Save',
     defaultName: 'Player 1',
+    accessibility: 'Accessibility',
+    reduceMotion: 'Reduce Motion',
+    theme: 'Theme',
+    themeClassic: 'Classic',
+    themeBlue: 'Blue',
+    themePurple: 'Purple',
+    themeRed: 'Red',
+    on: 'On',
+    off: 'Off',
   },
 };
 
@@ -51,6 +71,8 @@ export function SettingsMenu({ visible, onClose, currentName, currentAvatar, onS
   const [playerName, setPlayerName] = useState(currentName || '');
   const [selectedAvatar, setSelectedAvatar] = useState<string>(currentAvatar || AVATARS[0]);
   const [language, setLanguage] = useState<Language>('he');
+  const [reduceMotion, setReduceMotionState] = useState(isReduceMotionEnabled());
+  const [activeTheme, setActiveThemeState] = useState<ThemePresetName>(getActiveTheme());
 
   useEffect(() => {
     // Load language preference
@@ -61,7 +83,6 @@ export function SettingsMenu({ visible, onClose, currentName, currentAvatar, onS
 
   useEffect(() => {
     if (visible) {
-      // Load saved preferences when modal opens
       loadPlayerPreferences().then(prefs => {
         if (prefs) {
           setPlayerName(prefs.name);
@@ -73,9 +94,15 @@ export function SettingsMenu({ visible, onClose, currentName, currentAvatar, onS
           setSelectedAvatar(currentAvatar);
         }
       });
-      // Reload language preference when modal opens
       loadLanguagePreference().then(lang => {
         setLanguage(lang);
+      });
+      loadReduceMotion().then(rm => {
+        setReduceMotionState(rm);
+        setReduceMotionGlobal(rm);
+      });
+      loadThemePreference().then(theme => {
+        setActiveThemeState(theme as ThemePresetName);
       });
     }
   }, [visible, currentName, currentAvatar]);
@@ -142,6 +169,61 @@ export function SettingsMenu({ visible, onClose, currentName, currentAvatar, onS
                           <Text style={styles.checkmarkText}>✓</Text>
                         </View>
                       )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Accessibility */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t.accessibility}</Text>
+              <View style={styles.toggleRow}>
+                <Text style={styles.toggleLabel}>{t.reduceMotion}</Text>
+                <TouchableOpacity
+                  style={[styles.toggleButton, reduceMotion && styles.toggleButtonActive]}
+                  onPress={() => {
+                    const next = !reduceMotion;
+                    setReduceMotionState(next);
+                    setReduceMotionGlobal(next);
+                    saveReduceMotion(next);
+                  }}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: reduceMotion }}
+                  accessibilityLabel={t.reduceMotion}
+                >
+                  <Text style={styles.toggleText}>{reduceMotion ? t.on : t.off}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Theme */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t.theme}</Text>
+              <View style={styles.themeGrid}>
+                {(Object.keys(themePresets) as ThemePresetName[]).map((theme) => {
+                  const isSelected = activeTheme === theme;
+                  const preset = themePresets[theme];
+                  const label = theme === 'classic' ? t.themeClassic
+                    : theme === 'blue' ? t.themeBlue
+                    : theme === 'purple' ? t.themePurple
+                    : t.themeRed;
+                  return (
+                    <TouchableOpacity
+                      key={theme}
+                      style={[styles.themeButton, isSelected && styles.themeButtonSelected]}
+                      onPress={() => {
+                        setActiveThemeState(theme);
+                        setActiveTheme(theme);
+                        saveThemePreference(theme as ThemePreset);
+                      }}
+                      accessibilityLabel={label}
+                      accessibilityState={{ selected: isSelected }}
+                    >
+                      <View style={[styles.themePreview, { backgroundColor: preset.background }]}>
+                        <View style={[styles.themePreviewDot, { backgroundColor: preset.primary }]} />
+                      </View>
+                      <Text style={[styles.themeLabel, isSelected && styles.themeLabelSelected]}>{label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -260,6 +342,71 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    color: colors.foreground,
+  },
+  toggleButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: colors.secondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  toggleButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.accent,
+  },
+  toggleText: {
+    color: colors.foreground,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  themeGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  themeButton: {
+    alignItems: 'center',
+    gap: 6,
+    padding: 8,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  themeButtonSelected: {
+    borderColor: colors.gold,
+  },
+  themePreview: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  themePreviewDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  themeLabel: {
+    fontSize: 12,
+    color: colors.mutedForeground,
+  },
+  themeLabelSelected: {
+    color: colors.gold,
+    fontWeight: '600',
   },
   saveButton: {
     backgroundColor: colors.primary,
