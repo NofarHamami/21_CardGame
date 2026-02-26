@@ -14,6 +14,7 @@ import { colors } from '../theme/colors';
 import { generateRoomCode, getMultiplayerService, MultiplayerEvent } from '../services/MultiplayerService';
 import { loadLanguagePreference } from '../utils/storage';
 import { logger } from '../utils/logger';
+import { RootStackParamList } from '../navigation/types';
 
 type Language = 'he' | 'en';
 
@@ -54,14 +55,6 @@ const translations = {
     connecting: 'Connecting...',
     connectionFailed: 'Server connection failed. Using simulation mode.',
   },
-};
-
-type RootStackParamList = {
-  Home: undefined;
-  PlayerSetup: { gameMode: 'practice' | 'private' | 'random'; numPlayers: number };
-  Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' | 'random' };
-  Scoreboard: { players: Array<{ name: string; avatar?: string; score: number }> };
-  WaitingRoom: { gameMode: 'random'; numPlayers: number; playerName: string; playerAvatar: string };
 };
 
 type WaitingRoomScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'WaitingRoom'>;

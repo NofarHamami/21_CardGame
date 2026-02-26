@@ -505,6 +505,16 @@ export function playToCenter(
 
   // Place on center pile
   const [success, updatedPile] = placeOnPile(pile, card);
+  if (!success) {
+    logger.error('playToCenter: placeOnPile failed unexpectedly after canPlaceOnPile passed');
+    return {
+      ...state,
+      lastEvent: {
+        type: 'INVALID_MOVE',
+        message: 'Failed to place card on pile. Please try again.',
+      },
+    };
+  }
   pile = updatedPile;
   logger.debug('playToCenter: after placeOnPile - pile expectedNextValue:', pile.expectedNextValue, 'cards:', pile.cards.length);
 

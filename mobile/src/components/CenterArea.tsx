@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Animated } from 'react-native';
-import { CenterPile, peekPile, getExpectedNextRank, isPileComplete, pileSize, canPlaceOnPile } from '../models';
+import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, useWindowDimensions } from 'react-native';
+import { Card, CenterPile, peekPile, getExpectedNextRank, isPileComplete, pileSize, canPlaceOnPile } from '../models';
 import CardView from './CardView';
 import { SelectedCard } from '../hooks/useGameEngine';
 import { colors } from '../theme/colors';
+import { CARD_DIMENSIONS } from '../constants';
 import { loadLanguagePreference } from '../utils/storage';
 import { logger } from '../utils/logger';
+
+export interface CenterAreaRef {
+  getPileIndexAtPoint: (pageX: number, pageY: number) => number | null;
+}
 
 type Language = 'he' | 'en';
 
@@ -30,6 +35,13 @@ const translations = {
   },
 };
 
+interface PileLayout {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface CenterAreaProps {
   centerPiles: CenterPile[];
   stockPileSize: number;
@@ -40,6 +52,10 @@ interface CenterAreaProps {
   stockRef?: React.RefObject<View | null>;
   isAITurn?: boolean;
   completedPileIndex?: number | null;
+  onPileLayout?: (index: number, layout: PileLayout) => void;
+  draggingCard?: Card | null;
+  invalidPileIndex?: number | null;
+  invalidPileKey?: number;
 }
 
 export function CenterArea({
@@ -52,6 +68,10 @@ export function CenterArea({
   stockRef,
   isAITurn = false,
   completedPileIndex = null,
+  onPileLayout,
+  draggingCard = null,
+  invalidPileIndex = null,
+  invalidPileKey = 0,
 }: CenterAreaProps) {
   const [language, setLanguage] = useState<Language>('he');
 
@@ -61,19 +81,18 @@ export function CenterArea({
 
   const t = translations[language];
 
-  const screenWidth = React.useMemo(() => {
-    try { return Dimensions.get('window').width; } catch { return 800; }
-  }, []);
+  const { width: screenWidth } = useWindowDimensions();
 
   const isSmallScreen = screenWidth < 375;
   const isLargeScreen = screenWidth >= 768;
   const styles = React.useMemo(() => createStyles(isSmallScreen, isLargeScreen), [isSmallScreen, isLargeScreen]);
 
   const pulseAnim = React.useRef(new Animated.Value(0.4)).current;
+  const activeCard = selectedCard?.card || draggingCard;
   const hasValidTargets = React.useMemo(() => {
-    if (!selectedCard) return false;
-    return centerPiles.some((pile) => !isPileComplete(pile) && canPlaceOnPile(pile, selectedCard.card));
-  }, [selectedCard, centerPiles]);
+    if (!activeCard) return false;
+    return centerPiles.some((pile) => !isPileComplete(pile) && canPlaceOnPile(pile, activeCard));
+  }, [activeCard, centerPiles]);
 
   React.useEffect(() => {
     if (hasValidTargets) {
@@ -90,10 +109,41 @@ export function CenterArea({
     }
   }, [hasValidTargets, pulseAnim]);
 
+  const pileViewRefs = React.useRef<(View | null)[]>([]);
+
+  const measurePile = React.useCallback((index: number) => {
+    if (!onPileLayout) return;
+    const ref = pileViewRefs.current[index];
+    if (ref) {
+      ref.measureInWindow((x: number, y: number, width: number, height: number) => {
+        onPileLayout(index, { x, y, width, height });
+      });
+    }
+  }, [onPileLayout]);
+
   const celebrateScale = React.useRef(new Animated.Value(0)).current;
   const celebrateOpacity = React.useRef(new Animated.Value(0)).current;
   const [celebratingPile, setCelebratingPile] = React.useState<number | null>(null);
   const lastCelebratedRef = React.useRef<number | null>(null);
+
+  const pileShakeAnims = React.useRef(
+    Array.from({ length: 4 }, () => new Animated.Value(0))
+  ).current;
+
+  React.useEffect(() => {
+    if (invalidPileIndex != null && invalidPileIndex >= 0 && invalidPileIndex < pileShakeAnims.length) {
+      const anim = pileShakeAnims[invalidPileIndex];
+      anim.setValue(0);
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 8, duration: 50, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: -8, duration: 50, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 6, duration: 40, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: -6, duration: 40, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 3, duration: 30, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 30, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [invalidPileIndex, invalidPileKey, pileShakeAnims]);
 
   React.useEffect(() => {
     if (completedPileIndex != null && completedPileIndex !== lastCelebratedRef.current) {
@@ -137,65 +187,78 @@ export function CenterArea({
               const expectedRank = getExpectedNextRank(pile);
               const isComplete = isPileComplete(pile);
               const cardCount = pileSize(pile);
-              const canPlay = selectedCard && !isComplete;
+              const canPlay = (selectedCard || draggingCard) && !isComplete;
 
-              // Valid move hint: highlight piles where selected card can be placed
-              const isValidTarget = selectedCard && !isComplete && canPlaceOnPile(pile, selectedCard.card);
+              const isValidTarget = activeCard && !isComplete && canPlaceOnPile(pile, activeCard);
+
+              const shakeTranslate = index < pileShakeAnims.length ? pileShakeAnims[index] : undefined;
+              const isShaking = invalidPileIndex === index;
 
               return (
-                <TouchableOpacity
+                <View
                   key={`pile-${index}`}
-                  style={[styles.pileSlot, isValidTarget && styles.validTargetPile]}
-                  onPress={() => {
-                    logger.debug('CenterArea: Pile clicked', index);
-                    onPlayToCenter(index);
-                  }}
-                  disabled={!selectedCard || isComplete}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Pile ${index + 1}, needs ${expectedRank}`}
-                  accessibilityState={{ disabled: !canPlay }}
+                  nativeID={`center-pile-${index}`}
+                  ref={el => { pileViewRefs.current[index] = el; }}
+                  onLayout={() => measurePile(index)}
+                  collapsable={false}
+                  pointerEvents="box-none"
                 >
-                  {isValidTarget && (
-                    <Animated.View
-                      style={[styles.validTargetGlow, { opacity: pulseAnim }]}
-                      pointerEvents="none"
-                    />
-                  )}
-                  {celebratingPile === index && (
-                    <View style={styles.celebrationContainer} pointerEvents="none">
+                <Animated.View
+                  style={shakeTranslate ? { transform: [{ translateX: shakeTranslate }] } : undefined}
+                >
+                  <TouchableOpacity
+                    style={[styles.pileSlot, isValidTarget && styles.validTargetPile, isShaking && styles.invalidTargetPile]}
+                    onPress={() => {
+                      logger.debug('CenterArea: Pile clicked', index);
+                      onPlayToCenter(index);
+                    }}
+                    disabled={!selectedCard || isComplete}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pile ${index + 1}, needs ${expectedRank}`}
+                    accessibilityState={{ disabled: !canPlay }}
+                  >
+                    {isValidTarget && (
                       <Animated.View
-                        style={[styles.celebrationBurst, {
-                          transform: [{ scale: celebrateScale }],
-                          opacity: celebrateOpacity,
-                        }]}
+                        style={[styles.validTargetGlow, { opacity: pulseAnim }]}
+                        pointerEvents="none"
                       />
-                      <Animated.View
-                        style={[styles.celebrationRing, {
-                          transform: [{ scale: celebrateScale }],
-                          opacity: celebrateOpacity,
-                        }]}
-                      />
-                    </View>
-                  )}
-                  {topCard ? (
-                    <View pointerEvents="none">
-                      <CardView
-                        card={topCard}
-                        disabled={true}
-                        showCount={cardCount > 1 ? cardCount : undefined}
-                        compact={true}
-                      />
-                    </View>
-                  ) : (
-                    <View style={[styles.emptyPile, canPlay && styles.emptyPileHighlight, isValidTarget && styles.validTargetEmpty]}>
-                      <Text style={styles.emptyPileText}>A</Text>
-                    </View>
-                  )}
-                  <Text style={[styles.pileLabel, isComplete && styles.completePileLabel]}>
-                    {isComplete ? t.done : `→${expectedRank}`}
-                  </Text>
-                </TouchableOpacity>
+                    )}
+                    {celebratingPile === index && (
+                      <View style={styles.celebrationContainer} pointerEvents="none">
+                        <Animated.View
+                          style={[styles.celebrationBurst, {
+                            transform: [{ scale: celebrateScale }],
+                            opacity: celebrateOpacity,
+                          }]}
+                        />
+                        <Animated.View
+                          style={[styles.celebrationRing, {
+                            transform: [{ scale: celebrateScale }],
+                            opacity: celebrateOpacity,
+                          }]}
+                        />
+                      </View>
+                    )}
+                    {topCard ? (
+                      <View pointerEvents="none">
+                        <CardView
+                          card={topCard}
+                          disabled={true}
+                          showCount={cardCount > 1 ? cardCount : undefined}
+                        />
+                      </View>
+                    ) : (
+                      <View style={[styles.emptyPile, canPlay && styles.emptyPileHighlight, isValidTarget && styles.validTargetEmpty]}>
+                        <Text style={styles.emptyPileText}>A</Text>
+                      </View>
+                    )}
+                    <Text style={[styles.pileLabel, isComplete && styles.completePileLabel]}>
+                      {isComplete ? t.done : `→${expectedRank}`}
+                    </Text>
+                  </TouchableOpacity>
+                </Animated.View>
+                </View>
               );
             })}
           </View>
@@ -213,7 +276,6 @@ export function CenterArea({
             faceDown={stockPileSize > 0}
             showCount={stockPileSize}
             disabled={true}
-            compact={true}
           />
         </View>
       </View>
@@ -259,24 +321,18 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     alignItems: 'center',
     flexShrink: 1,
     minWidth: 0,
-    position: 'relative',
-    left: 250,
   },
   sectionLabel: {
     color: colors.mutedForeground,
     fontSize: 11,
     marginBottom: 6,
     fontWeight: '500',
-    position: 'relative',
-    right: 250,
   },
   pilesRow: {
     flexDirection: 'row',
     gap: isSmallScreen ? 3 : isLargeScreen ? 8 : 4,
     flexWrap: 'wrap',
     justifyContent: 'center',
-    position: 'relative',
-    right: 250,
   },
   pileSlot: {
     alignItems: 'center',
@@ -288,6 +344,14 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     shadowOpacity: 0.6,
     shadowRadius: 8,
     elevation: 6,
+  },
+  invalidTargetPile: {
+    borderRadius: 10,
+    shadowColor: colors.destructive,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 8,
   },
   validTargetGlow: {
     ...StyleSheet.absoluteFillObject,
@@ -320,8 +384,8 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     backgroundColor: 'transparent',
   },
   emptyPile: {
-    width: 80,
-    height: 112,
+    width: CARD_DIMENSIONS.WIDTH,
+    height: CARD_DIMENSIONS.HEIGHT,
     backgroundColor: `${colors.muted}33`,
     borderRadius: 8,
     borderWidth: 2,

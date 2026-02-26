@@ -13,16 +13,9 @@ import { RouteProp } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { GameMode } from './HomeScreen';
 import { savePlayerPreferences, loadPlayerPreferences, loadLanguagePreference } from '../utils/storage';
+import { RootStackParamList } from '../navigation/types';
 
 type Language = 'he' | 'en';
-
-type RootStackParamList = {
-  Home: undefined;
-  PlayerSetup: { gameMode: 'practice' | 'private' | 'random'; numPlayers: number };
-  Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' | 'random' };
-  Scoreboard: { players: Array<{ name: string; avatar?: string; score: number }> };
-  WaitingRoom: { gameMode: 'random'; numPlayers: number; playerName: string; playerAvatar: string };
-};
 
 type PlayerSetupScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlayerSetup'>;
 type PlayerSetupScreenRouteProp = RouteProp<RootStackParamList, 'PlayerSetup'>;
@@ -134,6 +127,8 @@ export function PlayerSetupScreen({ navigation, route }: PlayerSetupScreenProps)
               placeholder={t.placeholder}
               placeholderTextColor={colors.mutedForeground}
               maxLength={20}
+              accessibilityLabel={t.selectName}
+              accessibilityHint={t.placeholder}
             />
           </View>
 
@@ -151,6 +146,9 @@ export function PlayerSetupScreen({ navigation, route }: PlayerSetupScreenProps)
                       isSelected && styles.avatarButtonSelected,
                     ]}
                     onPress={() => setSelectedAvatar(avatar)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${language === 'he' ? 'אווטאר' : 'Avatar'} ${avatar}`}
+                    accessibilityState={{ selected: isSelected }}
                   >
                     <Text style={styles.avatarEmoji}>{avatar}</Text>
                     {isSelected && (
@@ -165,7 +163,12 @@ export function PlayerSetupScreen({ navigation, route }: PlayerSetupScreenProps)
           </View>
 
           {/* Start Button */}
-          <TouchableOpacity style={styles.startButton} onPress={handleStartGame}>
+          <TouchableOpacity
+            style={styles.startButton}
+            onPress={handleStartGame}
+            accessibilityRole="button"
+            accessibilityLabel={t.startGame}
+          >
             <Text style={styles.startButtonText}>{t.startGame}</Text>
           </TouchableOpacity>
 
@@ -173,6 +176,8 @@ export function PlayerSetupScreen({ navigation, route }: PlayerSetupScreenProps)
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel={t.back}
           >
             <Text style={styles.backButtonText}>{t.back}</Text>
           </TouchableOpacity>

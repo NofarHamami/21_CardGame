@@ -44,14 +44,19 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <View style={styles.container}>
+        <View style={styles.container} accessibilityRole="alert">
           <View style={styles.errorContainer}>
-            <Text style={styles.title}>Something went wrong</Text>
+            <Text style={styles.title}>Something went wrong / משהו השתבש</Text>
             <Text style={styles.message}>
-              {this.state.error?.message || 'An unexpected error occurred'}
+              {this.state.error?.message || 'An unexpected error occurred / אירעה שגיאה לא צפויה'}
             </Text>
-            <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-              <Text style={styles.buttonText}>Try Again</Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={this.handleReset}
+              accessibilityRole="button"
+              accessibilityLabel="Try Again / נסה שוב"
+            >
+              <Text style={styles.buttonText}>Try Again / נסה שוב</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -9,9 +9,10 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../theme/colors';
-import { GameStats, loadGameStats, getWinRate, getAverageTurns } from '../utils/gameStats';
+import { GameStats, loadGameStats, getWinRate } from '../utils/gameStats';
 import { loadLanguagePreference } from '../utils/storage';
 import { Achievement, loadAchievements } from '../utils/achievements';
+import { RootStackParamList } from '../navigation/types';
 
 type Language = 'he' | 'en';
 
@@ -24,7 +25,6 @@ const translations = {
     winRate: 'אחוז ניצחון',
     currentStreak: 'רצף נוכחי',
     bestStreak: 'רצף שיא',
-    avgTurns: 'תורות ממוצע',
     back: 'חזרה',
     noGames: 'עדיין לא שיחקת. התחל משחק!',
     achievements: 'הישגים',
@@ -38,17 +38,11 @@ const translations = {
     winRate: 'Win Rate',
     currentStreak: 'Current Streak',
     bestStreak: 'Best Streak',
-    avgTurns: 'Avg Turns',
     back: 'Back',
     noGames: "You haven't played yet. Start a game!",
     achievements: 'Achievements',
     locked: 'Locked',
   },
-};
-
-type RootStackParamList = {
-  Home: undefined;
-  Stats: undefined;
 };
 
 interface StatsScreenProps {
@@ -77,7 +71,6 @@ export function StatsScreen({ navigation }: StatsScreenProps) {
   }
 
   const winRate = getWinRate(stats);
-  const avgTurns = getAverageTurns(stats);
 
   const statItems = [
     { label: t.gamesPlayed, value: stats.gamesPlayed.toString() },
@@ -86,7 +79,6 @@ export function StatsScreen({ navigation }: StatsScreenProps) {
     { label: t.winRate, value: `${winRate}%` },
     { label: t.currentStreak, value: stats.currentWinStreak.toString() },
     { label: t.bestStreak, value: stats.longestWinStreak.toString() },
-    { label: t.avgTurns, value: avgTurns.toString() },
   ];
 
   return (

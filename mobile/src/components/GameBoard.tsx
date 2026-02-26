@@ -4,17 +4,15 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Pressable,
-  Modal,
-  Dimensions,
   BackHandler,
   Platform,
   LayoutChangeEvent,
   SafeAreaView,
   Animated,
-  GestureResponderEvent,
+  useWindowDimensions,
 } from 'react-native';
-import { Card, CardSource, Player, STORAGE_STACKS } from '../models';
+import { Card, CardSource, Player, STORAGE_STACKS, getHandCard, getPersonalPileTop, getStorageTop } from '../models';
+import { AIMove } from '../engine/AIPlayer';
 import { MAX_HAND_SIZE } from '../models/Player';
 import {
   CARD_DIMENSIONS,
@@ -34,6 +32,8 @@ import { SettingsMenu } from './SettingsMenu';
 import { ConfettiAnimation } from './ConfettiAnimation';
 import { CardPlayAnimation } from './CardPlayAnimation';
 import { Tutorial } from './Tutorial';
+import { GameToolbar } from './GameToolbar';
+import { GameOverModal } from './GameOverModal';
 import { loadLanguagePreference, loadMutePreference, loadVolumePreference, loadReduceMotion, loadThemePreference } from '../utils/storage';
 import { isMuted, setMuted, getVolume, setVolume, playVolumePreview, setReduceMotion, isReduceMotionEnabled } from '../utils/sounds';
 import { setActiveTheme, ThemePresetName } from '../theme/colors';
@@ -45,20 +45,10 @@ const translations = {
   he: {
     endTurn: 'סיים תור',
     cancel: 'בטל',
-    gameOver: 'המשחק נגמר!',
-    youWon: '🎉 ניצחת! 🎉',
-    wins: 'ניצח!',
-    newGame: 'משחק חדש',
-    playAgain: 'שחק שוב',
   },
   en: {
     endTurn: 'End Turn',
     cancel: 'Cancel',
-    gameOver: 'Game Over!',
-    youWon: '🎉 You Won! 🎉',
-    wins: 'wins!',
-    newGame: 'New Game',
-    playAgain: 'Play Again',
   },
 };
 
@@ -168,13 +158,7 @@ interface GameBoardProps {
   onNewGame: () => void;
 }
 
-const getScreenDimensions = () => {
-  try {
-    return Dimensions.get('window');
-  } catch (e) {
-    return { width: 800, height: 600 };
-  }
-};
+const FALLBACK_DIMENSIONS = { width: 800, height: 600 };
 
 const getResponsiveStyles = (screenWidth: number, screenHeight: number) => {
   const isSmallScreen = screenWidth < 375;
@@ -201,19 +185,15 @@ const getResponsiveStyles = (screenWidth: number, screenHeight: number) => {
 };
 
 export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
+  const windowDims = useWindowDimensions();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [language, setLanguage] = useState<Language>('he');
   const [soundMuted, setSoundMuted] = useState(isMuted());
   const [currentVolume, setCurrentVolume] = useState(getVolume());
-  const [volumePopupVisible, setVolumePopupVisible] = useState(false);
-  const [sliderTrackWidth, setSliderTrackWidth] = useState(0);
-  const volumeHideTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previewThrottleRef = React.useRef<number>(0);
   const middleRowRef = React.useRef<View>(null);
   const [middleRowHeight, setMiddleRowHeight] = useState(() => {
-    const dims = getScreenDimensions();
-    return Math.max(150, dims.height - 500);
+    return Math.max(150, (windowDims?.height || FALLBACK_DIMENSIONS.height) - 500);
   });
 
   // Turn pulse animation
@@ -235,9 +215,8 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
 
   const t = translations[language];
 
-  const screenDims = React.useMemo(() => getScreenDimensions(), []);
-  const screenWidth = screenDims.width;
-  const screenHeight = screenDims.height;
+  const screenWidth = windowDims?.width || FALLBACK_DIMENSIONS.width;
+  const screenHeight = windowDims?.height || FALLBACK_DIMENSIONS.height;
   const responsive = React.useMemo(() => getResponsiveStyles(screenWidth, screenHeight), [screenWidth, screenHeight]);
   const styles = React.useMemo(() => getStyles(screenWidth, screenHeight, responsive.sideWidth, responsive.isDesktop), [screenWidth, screenHeight, responsive.sideWidth, responsive.isDesktop]);
 
@@ -268,6 +247,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
     endCurrentTurn,
     resetGame,
     updatePlayerNameAndAvatar,
+    getHint,
   } = gameEngine;
 
   // Pulse animation on turn change
@@ -302,7 +282,18 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
   const player4 = players[3] || null;
 
   const stockRef = React.useRef<View | null>(null);
+  const centerPileLayoutsRef = React.useRef<Array<{x: number; y: number; width: number; height: number}>>([]);
+
+  const handlePileLayout = useCallback((index: number, layout: {x: number; y: number; width: number; height: number}) => {
+    const layouts = [...centerPileLayoutsRef.current];
+    layouts[index] = layout;
+    centerPileLayoutsRef.current = layouts;
+  }, []);
   const handSizeBeforePlayRef = React.useRef<number>(0);
+  const selectedCardRef = React.useRef(selectedCard);
+  selectedCardRef.current = selectedCard;
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggingCard, setDraggingCard] = useState<Card | null>(null);
   const { cardsToAnimate, isAnimating, onAnimationComplete } = useStockToHandAnimation(lastEvent);
 
   const getNewlyDrawnCardsForPlayer = React.useCallback((playerIndex: number): Card[] => {
@@ -336,13 +327,132 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
     playSelectedToCenter(pileIndex);
   }, [playSelectedToCenter, snapshotHandSize]);
 
+  const handleCardDragStart = useCallback((card: Card) => {
+    setIsDragging(true);
+    setDraggingCard(card);
+  }, []);
+
   const handleCardDragEnd = useCallback((card: Card, source: CardSource, sourceIndex: number, dx: number, dy: number, moveX: number, moveY: number) => {
+    setIsDragging(false);
+    setDraggingCard(null);
     const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance < 20) return;
+    if (distance < 40) {
+      if (selectedCardRef.current?.card.id === card.id) {
+        clearSelection();
+      }
+      return;
+    }
 
     snapshotHandSize();
 
-    const tryPlayToCenter = (): boolean => {
+    const HIT_PADDING = 30;
+
+    const scrollX = Platform.OS === 'web' ? (window.scrollX || window.pageXOffset || 0) : 0;
+    const scrollY = Platform.OS === 'web' ? (window.scrollY || window.pageYOffset || 0) : 0;
+    const vpX = moveX - scrollX;
+    const vpY = moveY - scrollY;
+
+    const findPileAtPointDOM = (): number | null => {
+      if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
+      let bestPile: number | null = null;
+      let bestDist = Infinity;
+      for (let i = 0; i < centerPiles.length; i++) {
+        const el = document.getElementById(`center-pile-${i}`);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (
+          vpX >= rect.left - HIT_PADDING &&
+          vpX <= rect.right + HIT_PADDING &&
+          vpY >= rect.top - HIT_PADDING &&
+          vpY <= rect.bottom + HIT_PADDING
+        ) {
+          const cx = (rect.left + rect.right) / 2;
+          const cy = (rect.top + rect.bottom) / 2;
+          const dist = (vpX - cx) ** 2 + (vpY - cy) ** 2;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestPile = i;
+          }
+        }
+      }
+      return bestPile;
+    };
+
+    const findPileAtPointRef = (): number | null => {
+      const pileLayouts = centerPileLayoutsRef.current;
+      if (!pileLayouts || !pileLayouts.some(l => !!l)) return null;
+      let bestPile: number | null = null;
+      let bestDist = Infinity;
+      for (let i = 0; i < pileLayouts.length; i++) {
+        const layout = pileLayouts[i];
+        if (!layout) continue;
+        if (
+          moveX >= layout.x - HIT_PADDING &&
+          moveX <= layout.x + layout.width + HIT_PADDING &&
+          moveY >= layout.y - HIT_PADDING &&
+          moveY <= layout.y + layout.height + HIT_PADDING
+        ) {
+          const cx = layout.x + layout.width / 2;
+          const cy = layout.y + layout.height / 2;
+          const dist = (moveX - cx) ** 2 + (moveY - cy) ** 2;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestPile = i;
+          }
+        }
+      }
+      return bestPile;
+    };
+
+    const findNearestPileDOM = (): number | null => {
+      if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
+      let bestPile: number | null = null;
+      let bestDist = Infinity;
+      for (let i = 0; i < centerPiles.length; i++) {
+        const el = document.getElementById(`center-pile-${i}`);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        const cx = (rect.left + rect.right) / 2;
+        const cy = (rect.top + rect.bottom) / 2;
+        const dist = (vpX - cx) ** 2 + (vpY - cy) ** 2;
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestPile = i;
+        }
+      }
+      return bestPile;
+    };
+
+    const findStorageAtPointDOM = (): number | null => {
+      if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
+      for (let i = 0; i < STORAGE_STACKS; i++) {
+        const el = document.getElementById(`storage-slot-${i}`);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (
+          vpX >= rect.left - HIT_PADDING &&
+          vpX <= rect.right + HIT_PADDING &&
+          vpY >= rect.top - HIT_PADDING &&
+          vpY <= rect.bottom + HIT_PADDING
+        ) {
+          return i;
+        }
+      }
+      return null;
+    };
+
+    const targetedPile = findPileAtPointDOM() ?? findPileAtPointRef();
+
+    if (targetedPile !== null) {
+      playDirectToCenter(source, sourceIndex, targetedPile);
+      return;
+    }
+
+    const tryPlayToCenterNearest = (): boolean => {
+      const nearest = findNearestPileDOM();
+      if (nearest !== null) {
+        return playDirectToCenter(source, sourceIndex, nearest);
+      }
       for (let i = 0; i < centerPiles.length; i++) {
         if (playDirectToCenter(source, sourceIndex, i)) return true;
       }
@@ -352,31 +462,40 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
     const tryPlayToStorage = (): boolean => {
       const storageSlotWidth = CARD_DIMENSIONS.COMPACT_WIDTH + SPACING.GAP_SMALL;
       const totalStorageWidth = STORAGE_STACKS * storageSlotWidth;
-      const storageStartX = (screenDims.width - totalStorageWidth) / 2;
+      const storageStartX = (screenWidth - totalStorageWidth) / 2;
       const relativeX = moveX - storageStartX;
       const storageIndex = Math.max(0, Math.min(STORAGE_STACKS - 1, Math.floor(relativeX / storageSlotWidth)));
       return playDirectToStorage(source, sourceIndex, storageIndex);
     };
 
-    // Storage and personal pile cards can only be played to center piles
     if (source === CardSource.STORAGE || source === CardSource.PERSONAL_PILE) {
-      tryPlayToCenter();
+      tryPlayToCenterNearest();
       return;
     }
 
-    // For hand cards, use drag direction to determine intent.
-    // Player 0 (top): center is below, storage is between hand and center.
-    //   Long downward drag (dy > 150) = center intent, shorter = storage.
-    // Player 1 (bottom): center is above, storage is below hand.
-    //   Any upward drag (dy < -30) = center intent, downward/horizontal = storage.
-    const centerIntent = currentPlayerIndex === 0 ? dy > 150 : dy < -30;
+    // Three-way intent for hand cards:
+    //   1. Dropped on a storage slot → storage
+    //   2. Clear vertical drag toward center → center
+    //   3. Neither → cancel (card returns to hand)
+    const targetedStorage = findStorageAtPointDOM();
+    if (targetedStorage !== null) {
+      playDirectToStorage(source, sourceIndex, targetedStorage);
+      return;
+    }
+
+    const centerIntent = currentPlayerIndex === 0 ? dy > 60 : dy < -60;
+    const storageIntent = currentPlayerIndex === 0 ? dy < -60 : dy > 60;
 
     if (centerIntent) {
-      if (!tryPlayToCenter()) tryPlayToStorage();
+      if (!tryPlayToCenterNearest()) tryPlayToStorage();
+    } else if (storageIntent) {
+      if (!tryPlayToStorage()) tryPlayToCenterNearest();
     } else {
-      if (!tryPlayToStorage()) tryPlayToCenter();
+      if (selectedCardRef.current?.card.id === card.id) {
+        clearSelection();
+      }
     }
-  }, [playDirectToCenter, playDirectToStorage, centerPiles, screenDims, currentPlayerIndex, snapshotHandSize]);
+  }, [playDirectToCenter, playDirectToStorage, centerPiles, screenWidth, screenHeight, currentPlayerIndex, snapshotHandSize, clearSelection]);
 
   const handleToggleMute = useCallback(() => {
     const newMuted = !soundMuted;
@@ -384,36 +503,51 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
     setMuted(newMuted);
   }, [soundMuted]);
 
-  const showVolumePopup = useCallback(() => {
-    if (volumeHideTimeoutRef.current) {
-      clearTimeout(volumeHideTimeoutRef.current);
-      volumeHideTimeoutRef.current = null;
-    }
-    setVolumePopupVisible(true);
-  }, []);
-
-  const scheduleHideVolumePopup = useCallback(() => {
-    volumeHideTimeoutRef.current = setTimeout(() => {
-      setVolumePopupVisible(false);
-    }, 400);
-  }, []);
-
-  const handleVolumeSlider = useCallback((e: GestureResponderEvent) => {
-    if (sliderTrackWidth <= 0) return;
-    const locationX = Math.max(0, Math.min(e.nativeEvent.locationX, sliderTrackWidth));
-    const newVolume = Math.round((locationX / sliderTrackWidth) * 100) / 100;
+  const handleVolumeChange = useCallback((newVolume: number) => {
     setCurrentVolume(newVolume);
     setVolume(newVolume);
     if (newVolume > 0 && soundMuted) {
       setSoundMuted(false);
       setMuted(false);
     }
-    const now = Date.now();
-    if (now - previewThrottleRef.current > 250) {
-      previewThrottleRef.current = now;
-      playVolumePreview();
+    playVolumePreview();
+  }, [soundMuted]);
+
+  const handleHint = useCallback(() => {
+    const hint = getHint();
+    if (!hint || !currentPlayer) return;
+    if (hint.type === 'endTurn') {
+      endCurrentTurn();
+      return;
     }
-  }, [sliderTrackWidth, soundMuted]);
+    if (hint.source === CardSource.HAND && hint.sourceIndex != null) {
+      const card = getHandCard(currentPlayer, hint.sourceIndex);
+      if (card) {
+        selectCard(card, CardSource.HAND, hint.sourceIndex);
+        if (hint.type === 'center' && hint.targetIndex != null) {
+          setTimeout(() => playDirectToCenter(CardSource.HAND, hint.sourceIndex!, hint.targetIndex!), 400);
+        } else if (hint.type === 'storage' && hint.targetIndex != null) {
+          setTimeout(() => playDirectToStorage(CardSource.HAND, hint.sourceIndex!, hint.targetIndex!), 400);
+        }
+      }
+    } else if (hint.source === CardSource.PERSONAL_PILE) {
+      const card = getPersonalPileTop(currentPlayer);
+      if (card) {
+        selectCard(card, CardSource.PERSONAL_PILE, 0);
+        if (hint.type === 'center' && hint.targetIndex != null) {
+          setTimeout(() => playDirectToCenter(CardSource.PERSONAL_PILE, 0, hint.targetIndex!), 400);
+        }
+      }
+    } else if (hint.source === CardSource.STORAGE && hint.sourceIndex != null) {
+      const card = getStorageTop(currentPlayer, hint.sourceIndex);
+      if (card) {
+        selectCard(card, CardSource.STORAGE, hint.sourceIndex);
+        if (hint.type === 'center' && hint.targetIndex != null) {
+          setTimeout(() => playDirectToCenter(CardSource.STORAGE, hint.sourceIndex!, hint.targetIndex!), 400);
+        }
+      }
+    }
+  }, [getHint, currentPlayer, selectCard, endCurrentTurn, playDirectToCenter, playDirectToStorage]);
 
   const completedPileIndex = lastEvent?.type === 'PILE_COMPLETED' ? lastEvent.pileIndex : null;
 
@@ -461,13 +595,33 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
     setCardPlayAnim(null);
   }, []);
 
-  const rawErrorMessage = lastEvent?.type === 'INVALID_MOVE' ? lastEvent.message : null;
-  const errorMessage = rawErrorMessage ? translateError(rawErrorMessage, language) : null;
-  const [showError, setShowError] = React.useState(false);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [invalidMoveCount, setInvalidMoveCount] = React.useState(0);
+  const [invalidPileIndex, setInvalidPileIndex] = React.useState<number | null>(null);
+  const errorTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
-    if (errorMessage) setShowError(true);
-  }, [errorMessage]);
+    if (lastEvent?.type === 'INVALID_MOVE') {
+      const msg = translateError(lastEvent.message, language);
+      setErrorMessage(msg);
+      setInvalidMoveCount(c => c + 1);
+
+      const pileMatch = lastEvent.message.match(/on pile (\d+)/);
+      setInvalidPileIndex(pileMatch ? parseInt(pileMatch[1], 10) - 1 : null);
+
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = setTimeout(() => {
+        setErrorMessage(null);
+        setInvalidPileIndex(null);
+      }, 5000);
+    }
+  }, [lastEvent, language]);
+
+  React.useEffect(() => {
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    };
+  }, []);
 
   // Check if current player is AI (disable manual controls)
   const isCurrentPlayerAI = currentPlayer?.isAI ?? false;
@@ -486,76 +640,17 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
 
   return (
     <View style={styles.container}>
-      {/* Settings Button */}
-      <TouchableOpacity
-        style={styles.settingsButton}
-        onPress={() => setSettingsVisible(true)}
-        accessibilityRole="button"
-        accessibilityLabel="Open settings"
-      >
-        <Text style={styles.settingsButtonText}>⚙️</Text>
-      </TouchableOpacity>
-
-      {/* Sound Control */}
-      <View
-        style={styles.soundControlWrapper}
-        {...(Platform.OS === 'web' ? {
-          onMouseEnter: showVolumePopup,
-          onMouseLeave: scheduleHideVolumePopup,
-        } : {})}
-      >
-        <Pressable
-          style={styles.muteButton}
-          onPress={handleToggleMute}
-          onLongPress={Platform.OS !== 'web' ? () => setVolumePopupVisible(v => !v) : undefined}
-          accessibilityRole="button"
-          accessibilityLabel={soundMuted ? 'Unmute' : 'Mute'}
-        >
-          <Text style={styles.settingsButtonText}>
-            {soundMuted ? '🔇' : currentVolume > 0.5 ? '🔊' : currentVolume > 0 ? '🔉' : '🔈'}
-          </Text>
-        </Pressable>
-
-        {volumePopupVisible && (
-          <View style={styles.volumePopup}>
-            <View
-              style={styles.volumeSliderTrack}
-              onLayout={(e) => setSliderTrackWidth(e.nativeEvent.layout.width)}
-              onStartShouldSetResponder={() => true}
-              onMoveShouldSetResponder={() => true}
-              onResponderGrant={handleVolumeSlider}
-              onResponderMove={handleVolumeSlider}
-            >
-              <View
-                style={[
-                  styles.volumeSliderFill,
-                  { width: `${Math.round(currentVolume * 100)}%` },
-                  soundMuted && styles.volumeSliderFillMuted,
-                ]}
-              />
-              <View
-                style={[
-                  styles.volumeSliderThumb,
-                  { left: `${Math.round(currentVolume * 100)}%` },
-                ]}
-              />
-            </View>
-            <Text style={styles.volumePercent}>
-              {soundMuted ? '🔇' : `${Math.round(currentVolume * 100)}%`}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Tutorial Button */}
-      <TouchableOpacity
-        style={styles.tutorialButton}
-        onPress={() => setTutorialVisible(true)}
-        accessibilityRole="button"
-        accessibilityLabel={language === 'he' ? 'איך משחקים?' : 'How to play'}
-      >
-        <Text style={styles.settingsButtonText}>❓</Text>
-      </TouchableOpacity>
+      <GameToolbar
+        language={language}
+        soundMuted={soundMuted}
+        currentVolume={currentVolume}
+        onToggleMute={handleToggleMute}
+        onVolumeChange={handleVolumeChange}
+        onOpenSettings={() => setSettingsVisible(true)}
+        onOpenTutorial={() => setTutorialVisible(true)}
+        onHint={!isCurrentPlayerAI ? handleHint : undefined}
+        hintDisabled={isCurrentPlayerAI || isGameOver}
+      />
 
       <Tutorial visible={tutorialVisible} onClose={() => setTutorialVisible(false)} language={language} />
 
@@ -568,8 +663,6 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
           if (currentPlayerIndex >= 0) updatePlayerNameAndAvatar(currentPlayerIndex, name, avatar);
         }}
       />
-
-      <ErrorToast message={errorMessage} visible={showError} onDismiss={() => setShowError(false)} />
 
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.gameLayout}>
@@ -598,6 +691,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                 onCancelSelection={currentPlayerIndex === 0 && !isCurrentPlayerAI ? clearSelection : undefined}
                 hasSelection={currentPlayerIndex === 0 && !!selectedCard}
                 onCardDragEnd={currentPlayerIndex === 0 && !isCurrentPlayerAI ? handleCardDragEnd : undefined}
+                onCardDragStart={currentPlayerIndex === 0 && !isCurrentPlayerAI ? handleCardDragStart : undefined}
               />
             </Animated.View>
           )}
@@ -647,7 +741,12 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                 stockRef={stockRef}
                 isAITurn={isCurrentPlayerAI}
                 completedPileIndex={completedPileIndex}
+                onPileLayout={handlePileLayout}
+                draggingCard={isDragging ? draggingCard : null}
+                invalidPileIndex={invalidPileIndex}
+                invalidPileKey={invalidMoveCount}
               />
+              <ErrorToast message={errorMessage} animKey={invalidMoveCount} />
               {isCurrentPlayerAI && (
                 <View style={styles.aiIndicator}>
                   <Text style={styles.aiIndicatorText}>
@@ -692,12 +791,6 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
             )}
           </View>
 
-          {errorMessage && (
-            <View style={styles.messageBox}>
-              <Text style={styles.messageText}>{errorMessage}</Text>
-            </View>
-          )}
-
           {/* BOTTOM PLAYER */}
           {player2 && (
             <Animated.View
@@ -723,6 +816,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                 onCancelSelection={currentPlayerIndex === 1 && !isCurrentPlayerAI ? clearSelection : undefined}
                 hasSelection={currentPlayerIndex === 1 && !!selectedCard}
                 onCardDragEnd={currentPlayerIndex === 1 && !isCurrentPlayerAI ? handleCardDragEnd : undefined}
+                onCardDragStart={currentPlayerIndex === 1 && !isCurrentPlayerAI ? handleCardDragStart : undefined}
               />
             </Animated.View>
           )}
@@ -755,45 +849,14 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
       {/* Confetti only when the human player wins */}
       <ConfettiAnimation visible={isGameOver && !!winner && !winner.isAI} />
 
-      {/* Game Over Modal */}
-      <Modal visible={isGameOver} transparent animationType="fade" onRequestClose={handleCloseModal}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={handleCloseModal}>
-          <TouchableOpacity
-            style={[styles.modalContent, !winner?.isAI && styles.modalContentWin]}
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            {winner && !winner.isAI ? (
-              <>
-                <Text style={styles.youWonTitle} accessibilityRole="header">{t.youWon}</Text>
-                <TouchableOpacity
-                  style={styles.playAgainButton}
-                  onPress={handleCloseModal}
-                  accessibilityRole="button"
-                  accessibilityLabel={language === 'he' ? 'שחק שוב' : 'Play again'}
-                >
-                  <Text style={styles.newGameButtonText}>{t.playAgain}</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.modalTitle} accessibilityRole="header">{t.gameOver}</Text>
-                <Text style={styles.winnerText}>
-                  {winner?.name} {t.wins}
-                </Text>
-                <TouchableOpacity
-                  style={styles.newGameButton}
-                  onPress={handleCloseModal}
-                  accessibilityRole="button"
-                  accessibilityLabel={language === 'he' ? 'התחל משחק חדש' : 'Start new game'}
-                >
-                  <Text style={styles.newGameButtonText}>{t.newGame}</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      <GameOverModal
+        visible={isGameOver}
+        winner={winner}
+        language={language}
+        onClose={handleCloseModal}
+        players={players}
+        turnCount={gameEngine.turnCount}
+      />
     </View>
   );
 }
@@ -814,132 +877,6 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       flexDirection: 'column',
       justifyContent: 'space-between',
       paddingBottom: 10,
-    },
-    settingsButton: {
-      position: 'absolute',
-      top: 50,
-      left: 16,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.secondary,
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000,
-      borderWidth: 2,
-      borderColor: colors.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 8,
-    },
-    soundControlWrapper: {
-      position: 'absolute',
-      top: 50,
-      left: 64,
-      zIndex: 1001,
-    },
-    muteButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.secondary,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 2,
-      borderColor: colors.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 8,
-      ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-    } as any,
-    volumePopup: {
-      position: 'absolute',
-      top: 46,
-      left: -8,
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.secondary,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderWidth: 2,
-      borderColor: colors.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.4,
-      shadowRadius: 8,
-      elevation: 12,
-      gap: 10,
-      width: 200,
-    },
-    volumeSliderTrack: {
-      flex: 1,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: `${colors.muted}88`,
-      justifyContent: 'center',
-      overflow: 'visible' as const,
-      ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
-    } as any,
-    volumeSliderFill: {
-      position: 'absolute',
-      left: 0,
-      top: 0,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: colors.gold,
-    },
-    volumeSliderFillMuted: {
-      backgroundColor: colors.mutedForeground,
-    },
-    volumeSliderThumb: {
-      position: 'absolute',
-      top: -4,
-      width: 16,
-      height: 16,
-      borderRadius: 8,
-      backgroundColor: colors.gold,
-      marginLeft: -8,
-      borderWidth: 2,
-      borderColor: colors.background,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.3,
-      shadowRadius: 2,
-      elevation: 4,
-    },
-    volumePercent: {
-      color: colors.mutedForeground,
-      fontSize: 12,
-      fontWeight: '600',
-      minWidth: 36,
-      textAlign: 'right',
-    },
-    tutorialButton: {
-      position: 'absolute',
-      top: 50,
-      left: 112,
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: colors.secondary,
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 1000,
-      borderWidth: 2,
-      borderColor: colors.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 8,
-    },
-    settingsButtonText: {
-      fontSize: 20,
     },
     loadingContainer: {
       flex: 1,
@@ -992,21 +929,6 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       alignItems: 'center',
       paddingVertical: responsive.paddingVertical,
       paddingHorizontal: responsive.paddingHorizontal,
-    },
-    messageBox: {
-      backgroundColor: colors.accent,
-      padding: 8,
-      marginHorizontal: 10,
-      marginVertical: 3,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: colors.goldLight,
-    },
-    messageText: {
-      color: colors.primaryForeground,
-      fontSize: 12,
-      textAlign: 'center',
-      fontWeight: '500',
     },
     actionButtons: {
       flexDirection: 'row',
@@ -1077,79 +999,6 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       color: colors.mutedForeground,
       fontSize: 14,
       fontStyle: 'italic',
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    modalContent: {
-      backgroundColor: colors.background,
-      borderRadius: 20,
-      padding: 40,
-      alignItems: 'center',
-      borderWidth: 2,
-      borderColor: colors.gold,
-      shadowColor: colors.gold,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.4,
-      shadowRadius: 20,
-      elevation: 20,
-    },
-    modalContentWin: {
-      borderColor: '#4CAF50',
-      shadowColor: '#4CAF50',
-    },
-    modalTitle: {
-      fontSize: 32,
-      fontWeight: 'bold',
-      color: colors.gold,
-      marginBottom: 15,
-    },
-    youWonTitle: {
-      fontSize: 36,
-      fontWeight: 'bold',
-      color: '#4CAF50',
-      marginBottom: 30,
-      textAlign: 'center',
-    },
-    winnerText: {
-      fontSize: 24,
-      color: colors.foreground,
-      marginBottom: 30,
-      fontWeight: '600',
-    },
-    newGameButton: {
-      backgroundColor: colors.gold,
-      paddingHorizontal: 40,
-      paddingVertical: 15,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.goldLight,
-      shadowColor: colors.gold,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.4,
-      shadowRadius: 8,
-      elevation: 8,
-    },
-    playAgainButton: {
-      backgroundColor: '#4CAF50',
-      paddingHorizontal: 40,
-      paddingVertical: 15,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: '#66BB6A',
-      shadowColor: '#4CAF50',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.4,
-      shadowRadius: 8,
-      elevation: 8,
-    },
-    newGameButtonText: {
-      color: colors.background,
-      fontSize: 20,
-      fontWeight: 'bold',
     },
   });
 };

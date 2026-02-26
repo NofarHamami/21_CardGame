@@ -1,75 +1,47 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Text, StyleSheet, Animated } from 'react-native';
 import { colors } from '../theme/colors';
 
 interface ErrorToastProps {
   message: string | null;
-  visible: boolean;
-  onDismiss?: () => void;
-  duration?: number;
+  animKey?: number;
 }
 
 /**
- * Error toast notification component
+ * Inline error message shown below the center piles.
+ * Visible as long as `message` is non-null (clears when the next game event occurs).
+ * The `animKey` prop triggers the entrance shake each time a new error happens.
  */
-export function ErrorToast({
-  message,
-  visible,
-  onDismiss,
-  duration = 3000,
-}: ErrorToastProps) {
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const slideAnim = React.useRef(new Animated.Value(-100)).current;
+export function ErrorToast({ message, animKey = 0 }: ErrorToastProps) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const prevAnimKey = useRef(animKey);
 
   useEffect(() => {
-    if (visible && message) {
-      // Show animation
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
+    if (message) {
+      fadeAnim.setValue(1);
 
-      // Auto-dismiss after duration
-      const timer = setTimeout(() => {
-        hideToast();
-      }, duration);
-
-      return () => clearTimeout(timer);
+      if (animKey !== prevAnimKey.current) {
+        prevAnimKey.current = animKey;
+        shakeAnim.setValue(0);
+        Animated.sequence([
+          Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 5, duration: 40, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: -5, duration: 40, useNativeDriver: true }),
+          Animated.timing(shakeAnim, { toValue: 0, duration: 30, useNativeDriver: true }),
+        ]).start();
+      }
     } else {
-      hideToast();
-    }
-  }, [visible, message]);
-
-  const hideToast = () => {
-    Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 200,
         useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: -100,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      if (onDismiss) {
-        onDismiss();
-      }
-    });
-  };
+      }).start();
+    }
+  }, [message, animKey, fadeAnim, shakeAnim]);
 
-  if (!visible || !message) {
-    return null;
-  }
+  if (!message) return null;
 
   return (
     <Animated.View
@@ -77,44 +49,41 @@ export function ErrorToast({
         styles.container,
         {
           opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
+          transform: [{ translateX: shakeAnim }],
         },
       ]}
+      accessibilityRole="alert"
+      accessibilityLiveRegion="assertive"
+      accessibilityLabel={message}
     >
-      <View style={styles.toast}>
-        <Text style={styles.message}>{message}</Text>
-      </View>
+      <Text style={styles.icon}>⚠</Text>
+      <Text style={styles.message}>{message}</Text>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: 60,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 1000,
-    pointerEvents: 'box-none',
-  },
-  toast: {
     backgroundColor: colors.destructive,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 8,
-    marginHorizontal: 20,
-    maxWidth: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  icon: {
+    fontSize: 14,
   },
   message: {
-    color: colors.primaryForeground,
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 18,
   },
 });

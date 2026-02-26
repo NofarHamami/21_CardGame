@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, StyleSheet, Animated, useWindowDimensions } from 'react-native';
 import { isReduceMotionEnabled } from '../utils/sounds';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const NUM_CONFETTI = 40;
 const CONFETTI_COLORS = ['#f9c74f', '#f8961e', '#f3722c', '#90be6d', '#43aa8b', '#577590', '#f94144', '#fff'];
 
@@ -20,12 +19,13 @@ interface ConfettiAnimationProps {
 }
 
 export function ConfettiAnimation({ visible }: ConfettiAnimationProps) {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const pieces = useRef<ConfettiPiece[]>([]);
 
   if (pieces.current.length === 0) {
     for (let i = 0; i < NUM_CONFETTI; i++) {
       pieces.current.push({
-        x: new Animated.Value(Math.random() * SCREEN_WIDTH),
+        x: new Animated.Value(Math.random() * screenWidth),
         y: new Animated.Value(-20 - Math.random() * 100),
         rotate: new Animated.Value(0),
         opacity: new Animated.Value(1),
@@ -38,8 +38,8 @@ export function ConfettiAnimation({ visible }: ConfettiAnimationProps) {
   useEffect(() => {
     if (!visible) return;
 
-    const animations = pieces.current.map((piece, i) => {
-      const startX = Math.random() * SCREEN_WIDTH;
+    const animations = pieces.current.map((piece) => {
+      const startX = Math.random() * screenWidth;
       const drift = (Math.random() - 0.5) * 120;
       const duration = 2500 + Math.random() * 2000;
       const delay = Math.random() * 800;
@@ -53,7 +53,7 @@ export function ConfettiAnimation({ visible }: ConfettiAnimationProps) {
         Animated.delay(delay),
         Animated.parallel([
           Animated.timing(piece.y, {
-            toValue: SCREEN_HEIGHT + 40,
+            toValue: screenHeight + 40,
             duration,
             useNativeDriver: true,
           }),
@@ -78,7 +78,7 @@ export function ConfettiAnimation({ visible }: ConfettiAnimationProps) {
     });
 
     Animated.parallel(animations).start();
-  }, [visible]);
+  }, [visible, screenWidth, screenHeight]);
 
   if (!visible || isReduceMotionEnabled()) return null;
 

@@ -34,7 +34,7 @@ interface StorageViewProps {
 /**
  * Storage view component that displays storage stacks
  */
-export function StorageView({
+export const StorageView = React.memo(function StorageView({
   player,
   isCurrentPlayer,
   selectedCard,
@@ -86,7 +86,7 @@ export function StorageView({
           const isDraggable = isCurrentPlayer && !!topCard && !!onCardDragEnd;
           const isBeingDragged = draggingIndex === index;
           return (
-            <View key={`storage-${index}`} style={showTargetHighlight && styles.storageHighlight}>
+            <View key={`storage-${index}`} nativeID={`storage-slot-${index}`} style={showTargetHighlight && styles.storageHighlight}>
               <View>
                 {/* Static pile background - visible when top card is being dragged */}
                 {isBeingDragged && stackSize > 1 && (
@@ -121,7 +121,7 @@ export function StorageView({
       <Text style={labelStyle} accessibilityRole="text">{t.storage}</Text>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

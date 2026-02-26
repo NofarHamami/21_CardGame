@@ -20,7 +20,7 @@ const AVATAR_COLORS = [
 /**
  * Player avatar component (Lovable style with emoji)
  */
-export function PlayerAvatar({ name, avatar, size = 48, isCurrentPlayer = false }: PlayerAvatarProps) {
+export const PlayerAvatar = React.memo(function PlayerAvatar({ name, avatar, size = 48, isCurrentPlayer = false }: PlayerAvatarProps) {
   // Pick color based on name hash
   const colorIndex = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % AVATAR_COLORS.length;
   const bgColor = AVATAR_COLORS[colorIndex];
@@ -69,6 +69,8 @@ export function PlayerAvatar({ name, avatar, size = 48, isCurrentPlayer = false 
         },
         isCurrentPlayer && styles.currentPlayer,
       ]}
+      accessibilityRole="image"
+      accessibilityLabel={`${name}${isCurrentPlayer ? ', current player' : ''}`}
     >
       {/* Emoji avatar (matching Lovable design) */}
       <Text style={[styles.emoji, { fontSize: emojiSize }]}>{emojiToShow}</Text>
@@ -79,7 +81,7 @@ export function PlayerAvatar({ name, avatar, size = 48, isCurrentPlayer = false 
       )}
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

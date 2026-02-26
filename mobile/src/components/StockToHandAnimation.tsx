@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Animated, StyleSheet, Dimensions, Easing } from 'react-native';
+import { View, Animated, StyleSheet, Easing, useWindowDimensions } from 'react-native';
 import { Card } from '../models';
 import CardView from './CardView';
 import { CARD_DIMENSIONS } from '../constants';
 import { logger } from '../utils/logger';
 import { colors, withOpacity, opacity } from '../theme/colors';
+import { isReduceMotionEnabled } from '../utils/sounds';
 
 interface StockToHandAnimationProps {
   cardsToAnimate: Card[];
@@ -23,6 +24,7 @@ export function StockToHandAnimation({
   playerPosition,
   onAnimationComplete,
 }: StockToHandAnimationProps) {
+  const windowDims = useWindowDimensions();
   const [isAnimating, setIsAnimating] = useState(false);
   const [stockPosition, setStockPosition] = useState<{ x: number; y: number } | null>(null);
   const stockPulseRef = useRef(new Animated.Value(1));
@@ -35,6 +37,11 @@ export function StockToHandAnimation({
 
   useEffect(() => {
     if (cardsToAnimate.length === 0) {
+      return;
+    }
+
+    if (isReduceMotionEnabled()) {
+      onAnimationComplete();
       return;
     }
 
@@ -53,8 +60,8 @@ export function StockToHandAnimation({
 
     // Calculate target direction - straight line motion like lifting a real card
     const getTargetOffset = () => {
-      const screenWidth = Dimensions.get('window').width;
-      const screenHeight = Dimensions.get('window').height;
+      const screenWidth = windowDims.width;
+      const screenHeight = windowDims.height;
       
       switch (playerPosition) {
         case 'bottom':

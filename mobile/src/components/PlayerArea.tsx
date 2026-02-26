@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Dimensions, LayoutChangeEvent } from 'react-native';
+import { View, LayoutChangeEvent, useWindowDimensions } from 'react-native';
 import { Player, Card, CardSource } from '../models';
 import { SelectedCard } from '../hooks/useGameEngine';
 import { PlayerAreaHorizontal } from './PlayerAreaHorizontal';
@@ -23,6 +23,7 @@ interface PlayerAreaProps {
   onCancelSelection?: () => void;
   hasSelection?: boolean;
   onCardDragEnd?: (card: Card, source: CardSource, sourceIndex: number, dx: number, dy: number, moveX: number, moveY: number) => void;
+  onCardDragStart?: (card: Card) => void;
 }
 
 /**
@@ -47,17 +48,11 @@ export function PlayerArea({
   onCancelSelection,
   hasSelection = false,
   onCardDragEnd,
+  onCardDragStart,
 }: PlayerAreaProps) {
   const [measuredHeight, setMeasuredHeight] = useState(0);
 
-  // Get screen width inside component (after React Native is initialized)
-  const screenWidth = React.useMemo(() => {
-    try {
-      return Dimensions.get('window').width;
-    } catch (e) {
-      return DEFAULTS.SCREEN_WIDTH;
-    }
-  }, []);
+  const { width: screenWidth } = useWindowDimensions();
 
   const isSmallScreen = screenWidth < SCREEN_BREAKPOINTS.SMALL;
   const isLargeScreen = screenWidth >= SCREEN_BREAKPOINTS.LARGE;
@@ -94,6 +89,7 @@ export function PlayerArea({
         onCancelSelection={onCancelSelection}
         hasSelection={hasSelection}
         onCardDragEnd={onCardDragEnd}
+        onCardDragStart={onCardDragStart}
       />
     );
   }
@@ -162,6 +158,7 @@ export function PlayerArea({
             onCancelSelection={onCancelSelection}
             hasSelection={hasSelection}
             onCardDragEnd={onCardDragEnd}
+            onCardDragStart={onCardDragStart}
           />
         </View>
       </View>
@@ -187,6 +184,7 @@ export function PlayerArea({
       onCancelSelection={onCancelSelection}
       hasSelection={hasSelection}
       onCardDragEnd={onCardDragEnd}
+      onCardDragStart={onCardDragStart}
     />
   );
 }

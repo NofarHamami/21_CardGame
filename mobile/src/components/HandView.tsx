@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useLayoutEffect } from 'react';
-import { View, StyleSheet, Dimensions, Animated } from 'react-native';
+import { View, StyleSheet, Animated, useWindowDimensions } from 'react-native';
 import { Card, CardSource } from '../models';
 import CardView from './CardView';
 import { SelectedCard } from '../hooks/useGameEngine';
@@ -15,6 +15,7 @@ import {
 } from '../constants';
 import { MAX_HAND_SIZE } from '../models/Player';
 import { logger } from '../utils/logger';
+import { isReduceMotionEnabled } from '../utils/sounds';
 
 interface HandViewProps {
   cards: Card[];
@@ -26,6 +27,7 @@ interface HandViewProps {
   playerName?: string;
   newlyDrawnCards?: Card[];
   onCardDragEnd?: (card: Card, source: CardSource, sourceIndex: number, dx: number, dy: number, moveX: number, moveY: number) => void;
+  onCardDragStart?: (card: Card) => void;
 }
 
 /**
@@ -41,6 +43,7 @@ export function HandView({
   playerName,
   newlyDrawnCards = [],
   onCardDragEnd,
+  onCardDragStart,
 }: HandViewProps) {
   const [draggingCardId, setDraggingCardId] = React.useState<string | null>(null);
 
@@ -532,75 +535,63 @@ export function HandView({
       }
     });
 
-    // Animate ONLY newly added cards with initial delay, staggered timing and scale effect
     if (cardsToAnimate.length > 0) {
       logger.debug('HandView: Starting animation for', cardsToAnimate.length, 'new cards');
-      logger.debug('HandView: New card IDs:', cardsToAnimate.map(c => c.id));
-      
-      // Ensure all new cards start invisible BEFORE starting animation
-      cardsToAnimate.forEach(card => {
-        let animValue = cardAnimationsRef.current.get(card.id);
-        if (!animValue) {
-          animValue = new Animated.Value(0);
-          cardAnimationsRef.current.set(card.id, animValue);
-          logger.debug(`HandView: Created animation value for card ${card.id}`);
-        }
-        animValue.setValue(0);
-        logger.debug(`HandView: Set animation value to 0 for card ${card.id}`);
-      });
-      
-      // Force a re-render to show hidden cards, then start animations
-      // Use requestAnimationFrame to ensure cards are rendered first
-      requestAnimationFrame(() => {
+
+      // If reduce motion is enabled, skip animations entirely
+      if (isReduceMotionEnabled()) {
+        cardsToAnimate.forEach(card => {
+          const animValue = cardAnimationsRef.current.get(card.id);
+          if (animValue) animValue.setValue(1);
+        });
+        newCardIdsRef.current.clear();
+        setNewCardIdsState(new Set());
+      } else {
+        cardsToAnimate.forEach(card => {
+          let animValue = cardAnimationsRef.current.get(card.id);
+          if (!animValue) {
+            animValue = new Animated.Value(0);
+            cardAnimationsRef.current.set(card.id, animValue);
+          }
+          animValue.setValue(0);
+        });
+
         requestAnimationFrame(() => {
-          const initialDelay = 200;
-          const animationDuration = 900;
-          
-          logger.debug('HandView: Starting animations for', cardsToAnimate.length, 'cards');
-          
-          cardsToAnimate.forEach((card, index) => {
-            const animValue = cardAnimationsRef.current.get(card.id);
-            if (!animValue) {
-              logger.error('HandView: ERROR - Animation value not found for card', card.id);
-              return;
-            }
-            
-            // Ensure NEW card starts invisible
-            animValue.setValue(0);
-            logger.debug(`HandView: Starting animation for card ${card.id} at index ${index}`);
-            
-            // Stagger animations: each card starts 150ms after the previous one
-            // This creates a clear "drawing" effect
-            const staggerDelay = index * 150;
-            const totalDelay = initialDelay + staggerDelay;
-            
-            logger.debug(`HandView: Scheduling animation for card ${card.id} with delay ${totalDelay}ms`);
-            
-            Animated.sequence([
-              Animated.delay(totalDelay),
-              Animated.parallel([
-                Animated.timing(animValue, {
-                  toValue: 1,
-                  duration: animationDuration,
-                  useNativeDriver: true,
-                }),
-              ]),
-            ]).start((finished) => {
-              logger.debug(`HandView: Animation ${finished ? 'completed' : 'cancelled'} for card ${card.id}`);
-              if (finished) {
-                // After animation completes, remove card from new cards set
-                // This ensures it won't be animated again
-                newCardIdsRef.current.delete(card.id);
-                setNewCardIdsState(prev => {
-                  const newSet = new Set(prev);
-                  newSet.delete(card.id);
-                  return newSet;
-                });
-              }
+          requestAnimationFrame(() => {
+            const initialDelay = 200;
+            const animationDuration = 900;
+
+            cardsToAnimate.forEach((card, index) => {
+              const animValue = cardAnimationsRef.current.get(card.id);
+              if (!animValue) return;
+
+              animValue.setValue(0);
+              const staggerDelay = index * 150;
+              const totalDelay = initialDelay + staggerDelay;
+
+              Animated.sequence([
+                Animated.delay(totalDelay),
+                Animated.parallel([
+                  Animated.timing(animValue, {
+                    toValue: 1,
+                    duration: animationDuration,
+                    useNativeDriver: true,
+                  }),
+                ]),
+              ]).start((finished) => {
+                if (finished) {
+                  newCardIdsRef.current.delete(card.id);
+                  setNewCardIdsState(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(card.id);
+                    return newSet;
+                  });
+                }
+              });
             });
           });
         });
-      });
+      }
     } else {
       // No new cards to animate - clear the set
       logger.debug('HandView: No cards to animate');
@@ -678,13 +669,7 @@ export function HandView({
     );
   }
 
-  const screenWidth = React.useMemo(() => {
-    try {
-      return Dimensions.get('window').width;
-    } catch (e) {
-      return DEFAULTS.SCREEN_WIDTH;
-    }
-  }, []);
+  const { width: screenWidth } = useWindowDimensions();
 
   const isSmallScreen = screenWidth < SCREEN_BREAKPOINTS.SMALL;
   const isLargeScreen = screenWidth >= SCREEN_BREAKPOINTS.LARGE;
@@ -736,21 +721,7 @@ export function HandView({
           // Don't use newCardIdsState because state updates are async and might be stale
           const isNewCard = newCardIds.has(card.id);
           
-          // CRITICAL: For existing cards, ensure they stay visible and don't animate
-          // Existing cards should NEVER use animated values - they stay static
           if (!isNewCard) {
-            // Existing card - use static values (no animation at all)
-            // CRITICAL: Stop any ongoing animation and ensure value is 1
-            const animValue = cardAnimationsRef.current.get(card.id);
-            if (animValue) {
-              // Stop any running animation
-              animValue.stopAnimation();
-              // Force to 1 (fully visible) immediately
-              animValue.setValue(1);
-              logger.debug(`HandView: Render - Existing card ${card.id}, stopped animation and set to 1`);
-            }
-            
-            // Use static values - NO animation
             const isDragging = draggingCardId === card.id;
             const opacity = 1;
             const translateY = isDragging ? 0 : archHeight;
@@ -769,7 +740,7 @@ export function HandView({
                       { rotate: isDragging ? '0deg' : `${rotationDegrees}deg` },
                       { scale },
                     ],
-                    zIndex: isDragging ? 100 : undefined,
+                    zIndex: isDragging ? 100 : index + Z_INDEX.HAND_CARD,
                     elevation: isDragging ? 8 : undefined,
                   },
                   !isDragging && isCardSelected(CardSource.HAND, index) && styles.handCardSelected,
@@ -781,7 +752,7 @@ export function HandView({
                   selected={isCardSelected(CardSource.HAND, index)}
                   onPress={() => onSelectCard(card, CardSource.HAND, index)}
                   draggable={isCurrentPlayer && showHandCards && !!onCardDragEnd}
-                  onDragStart={() => setDraggingCardId(card.id)}
+                  onDragStart={() => { setDraggingCardId(card.id); onCardDragStart?.(card); }}
                   onDragEnd={onCardDragEnd ? (dx: number, dy: number, moveX: number, moveY: number) => {
                     setDraggingCardId(null);
                     onCardDragEnd(card, CardSource.HAND, index, dx, dy, moveX, moveY);
@@ -790,36 +761,22 @@ export function HandView({
               </View>
             );
           }
-          
-          // From here on, we KNOW this is a new card (isNewCard === true)
-          logger.debug(`HandView: Render - Card ${card.id} is NEW, will animate`);
-          
-          // This is a NEW card - get or create animation value
+
+          // New card - animation values are managed in useLayoutEffect/useEffect
           let animValue = cardAnimationsRef.current.get(card.id);
           if (!animValue) {
-            // Create animation value - new cards start at 0 (invisible)
             animValue = new Animated.Value(0);
             cardAnimationsRef.current.set(card.id, animValue);
-            logger.debug(`HandView: Render - Created animation value for NEW card ${card.id}, starting at 0`);
-          } else {
-            // Ensure it's set to 0 (invisible) for new cards
-            animValue.setValue(0);
-            logger.debug(`HandView: Render - Reset animation value to 0 for NEW card ${card.id}`);
           }
-          
-          // NEW CARDS ONLY: Use animated values
-          // These will animate from 0 to 1
-          const opacity = animValue; // Animated opacity (starts at 0)
+          const opacity = animValue;
           const translateY = animValue.interpolate({
             inputRange: [0, 1],
             outputRange: [archHeight + 60, archHeight], // Start 60px below final position, slide up to archHeight
           });
           const scale = animValue.interpolate({
             inputRange: [0, 0.4, 0.7, 1],
-            outputRange: [0.6, 1.2, 1.05, 1], // Start smaller, pop larger, slight bounce back, then settle
+            outputRange: [0.6, 1.2, 1.05, 1],
           });
-          
-          logger.debug(`HandView: Render - Rendering NEW card ${card.id}`);
 
           const isDraggingNew = draggingCardId === card.id;
 
@@ -836,7 +793,7 @@ export function HandView({
                     { rotate: isDraggingNew ? '0deg' : `${rotationDegrees}deg` },
                     { scale: isDraggingNew ? 1.1 : scale },
                   ],
-                  zIndex: isDraggingNew ? 100 : undefined,
+                  zIndex: isDraggingNew ? 100 : index + Z_INDEX.HAND_CARD,
                   elevation: isDraggingNew ? 8 : undefined,
                 },
                 !isDraggingNew && isCardSelected(CardSource.HAND, index) && styles.handCardSelected,
@@ -848,7 +805,7 @@ export function HandView({
                 selected={isCardSelected(CardSource.HAND, index)}
                 onPress={() => onSelectCard(card, CardSource.HAND, index)}
                 draggable={isCurrentPlayer && showHandCards && !!onCardDragEnd}
-                onDragStart={() => setDraggingCardId(card.id)}
+                onDragStart={() => { setDraggingCardId(card.id); onCardDragStart?.(card); }}
                 onDragEnd={onCardDragEnd ? (dx: number, dy: number, moveX: number, moveY: number) => {
                   setDraggingCardId(null);
                   onCardDragEnd(card, CardSource.HAND, index, dx, dy, moveX, moveY);

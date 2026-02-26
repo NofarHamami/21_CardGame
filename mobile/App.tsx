@@ -4,33 +4,21 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { ThemeProvider } from './src/theme/ThemeContext';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { GameScreen } from './src/screens/GameScreen';
 import { PlayerSetupScreen } from './src/screens/PlayerSetupScreen';
 import { ScoreboardScreen } from './src/screens/ScoreboardScreen';
 import { WaitingRoomScreen } from './src/screens/WaitingRoomScreen';
 import { StatsScreen } from './src/screens/StatsScreen';
-
-export type RootStackParamList = {
-  Home: undefined;
-  PlayerSetup: { gameMode: 'practice' | 'private' | 'random'; numPlayers: number };
-  Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' | 'random'; resumeState?: string };
-  Scoreboard: {
-    players: Array<{ name: string; avatar?: string; score: number; cardsRemaining: number }>;
-    turnsPlayed: number;
-    gameMode?: string;
-    numPlayers: number;
-    aiDifficulty?: string;
-  };
-  WaitingRoom: { gameMode: 'random'; numPlayers: number; playerName: string; playerAvatar: string };
-  Stats: undefined;
-};
+import { RootStackParamList } from './src/navigation/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
     <ErrorBoundary>
+      <ThemeProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <NavigationContainer>
           <StatusBar style="light" />
@@ -102,6 +90,7 @@ export default function App() {
         </Stack.Navigator>
       </NavigationContainer>
     </GestureHandlerRootView>
+    </ThemeProvider>
     </ErrorBoundary>
   );
 }

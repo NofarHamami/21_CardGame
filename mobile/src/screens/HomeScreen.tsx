@@ -7,9 +7,9 @@ import {
   SafeAreaView,
   ScrollView,
   Animated,
-  Dimensions,
   Image,
   Switch,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,17 +18,7 @@ import { colors } from '../theme/colors';
 import { loadPlayerPreferences, loadLanguagePreference, saveLanguagePreference, loadAIDifficulty, saveAIDifficulty, AIDifficulty, isFirstLaunch, markFirstLaunchDone } from '../utils/storage';
 import { loadSavedGame, clearSavedGame, SavedGame } from '../utils/gameSave';
 import { Tutorial } from '../components/Tutorial';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-type RootStackParamList = {
-  Home: undefined;
-  PlayerSetup: { gameMode: 'practice' | 'private' | 'random'; numPlayers: number };
-  Game: { numPlayers: number; playerName?: string; playerAvatar?: string; gameMode?: 'practice' | 'private' | 'random'; resumeState?: string; aiDifficulty?: AIDifficulty; timedMode?: boolean };
-  Scoreboard: { players: Array<{ name: string; avatar?: string; score: number }> };
-  WaitingRoom: { gameMode: 'random'; numPlayers: number; playerName: string; playerAvatar: string };
-  Stats: undefined;
-};
+import { RootStackParamList } from '../navigation/types';
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
@@ -52,10 +42,6 @@ const translations = {
     randomMode: 'משחק רנדומלי',
     randomSubtext: 'משתתפים קיימים',
     playersTitle: 'מספר משתתפים',
-    rulesTitle: 'חוקים',
-    rule1: '• בנה ערימות מרכזיות מA עד Q',
-    rule2: `• מלך הוא ג'וקר`,
-    rule3: '• הראשון שמסיים את ערימת ה-21 שלו מנצח!',
     startButton: 'התחל משחק',
     resumeButton: 'המשך משחק',
     stats: 'סטטיסטיקות',
@@ -79,10 +65,6 @@ const translations = {
     randomMode: 'Random',
     randomSubtext: 'Existing Players',
     playersTitle: 'Number of Players',
-    rulesTitle: 'Rules',
-    rule1: '• Build center piles from Ace to Queen',
-    rule2: '• Kings are wild cards',
-    rule3: '• First to empty your 21-pile wins!',
     startButton: 'Start Game',
     resumeButton: 'Resume Game',
     stats: 'Statistics',
@@ -98,6 +80,7 @@ const translations = {
 };
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
+  const { width: screenWidth } = useWindowDimensions();
   const [selectedPlayers, setSelectedPlayers] = useState(2);
   const [selectedGameMode, setSelectedGameMode] = useState<GameMode>('practice');
   const [savedPreferences, setSavedPreferences] = useState<{ name: string; avatar: string } | null>(null);
@@ -225,21 +208,34 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             {/* Game Mode */}
             <Text style={styles.sectionTitle}>{t.gameModeTitle}</Text>
             <View style={[styles.gameModeButtons, language === 'he' && styles.gameModeButtonsRTL]}>
-              {(language === 'he' ? ['random', 'private', 'practice'] as GameMode[] : ['practice', 'private', 'random'] as GameMode[]).map((mode) => (
-                <TouchableOpacity
-                  key={mode}
-                  style={[styles.gameModeButton, selectedGameMode === mode && styles.gameModeButtonSelected]}
-                  onPress={() => handleGameModeSelect(mode)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.gameModeButtonText, selectedGameMode === mode && styles.gameModeButtonTextSelected]}>
-                    {mode === 'practice' ? t.practiceMode : mode === 'private' ? t.privateMode : t.randomMode}
-                  </Text>
-                  <Text style={[styles.gameModeSubtext, selectedGameMode === mode && styles.gameModeSubtextSelected]}>
-                    {mode === 'practice' ? t.practiceSubtext : mode === 'private' ? t.privateSubtext : t.randomSubtext}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {(language === 'he' ? ['random', 'private', 'practice'] as GameMode[] : ['practice', 'private', 'random'] as GameMode[]).map((mode) => {
+                const isDisabled = mode === 'random';
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[
+                      styles.gameModeButton,
+                      selectedGameMode === mode && styles.gameModeButtonSelected,
+                      isDisabled && { opacity: 0.5 },
+                    ]}
+                    onPress={() => !isDisabled && handleGameModeSelect(mode)}
+                    activeOpacity={isDisabled ? 1 : 0.7}
+                    disabled={isDisabled}
+                    accessibilityRole="button"
+                    accessibilityLabel={mode === 'practice' ? t.practiceMode : mode === 'private' ? t.privateMode : t.randomMode}
+                    accessibilityState={{ selected: selectedGameMode === mode, disabled: isDisabled }}
+                  >
+                    <Text style={[styles.gameModeButtonText, selectedGameMode === mode && styles.gameModeButtonTextSelected]}>
+                      {mode === 'practice' ? t.practiceMode : mode === 'private' ? t.privateMode : t.randomMode}
+                    </Text>
+                    <Text style={[styles.gameModeSubtext, selectedGameMode === mode && styles.gameModeSubtextSelected]}>
+                      {isDisabled
+                        ? (language === 'he' ? 'בקרוב...' : 'Coming Soon')
+                        : (mode === 'practice' ? t.practiceSubtext : mode === 'private' ? t.privateSubtext : t.randomSubtext)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Number of Players */}
@@ -254,6 +250,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                     style={[styles.playerButton, isSelected && styles.playerButtonSelected]}
                     onPress={() => setSelectedPlayers(numPlayers)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${numPlayers} ${language === 'he' ? 'שחקנים' : 'players'}`}
+                    accessibilityState={{ selected: isSelected }}
                   >
                     <Text style={[styles.playerButtonText, isSelected && styles.playerButtonTextSelected]}>
                       {numPlayers}
@@ -304,28 +303,15 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               />
             </View>
 
-            {/* Rules */}
-            <View style={styles.rulesSection}>
-              <Text style={styles.rulesTitle}>{t.rulesTitle}</Text>
-              <View style={styles.rulesList}>
-                {[t.rule1, t.rule2, t.rule3].map((rule, idx) => (
-                  <View key={idx} style={[styles.ruleItem, language === 'he' && styles.ruleItemRtl]}>
-                    <Text style={styles.ruleBullet}>•</Text>
-                    <Text style={[styles.ruleText, language === 'he' && styles.ruleTextRtl]}>{rule.replace('• ', '')}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-
             {/* Resume Game Button */}
             {savedGame && (
-              <TouchableOpacity style={styles.resumeButton} onPress={handleResumeGame} activeOpacity={0.9}>
+              <TouchableOpacity style={[styles.resumeButton, { maxWidth: screenWidth - 100 }]} onPress={handleResumeGame} activeOpacity={0.9}>
                 <Text style={styles.resumeButtonText}>{t.resumeButton}</Text>
               </TouchableOpacity>
             )}
 
             {/* Start Game Button */}
-            <TouchableOpacity style={styles.startButton} onPress={handleStartGame} activeOpacity={0.9}>
+            <TouchableOpacity style={[styles.startButton, { maxWidth: screenWidth - 100 }]} onPress={handleStartGame} activeOpacity={0.9}>
               <LinearGradient
                 colors={[colors.primary, colors.accent]}
                 style={styles.startButtonGradient}
@@ -526,51 +512,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     width: '100%',
   },
-  rulesSection: {
-    width: '100%',
-    backgroundColor: colors.secondary,
-    opacity: 0.8,
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rulesTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.primary,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  rulesList: {
-    gap: 8,
-  },
-  ruleItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  ruleItemRtl: {
-    flexDirection: 'row-reverse',
-  },
-  ruleBullet: {
-    fontSize: 14,
-    color: colors.primary,
-    marginTop: 2,
-  },
-  ruleText: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.foreground,
-    lineHeight: 20,
-  },
-  ruleTextRtl: {
-    textAlign: 'right',
-  },
   resumeButton: {
     width: '100%',
-    maxWidth: SCREEN_WIDTH - 100,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: colors.secondary,
@@ -588,7 +531,6 @@ const styles = StyleSheet.create({
   },
   startButton: {
     width: '100%',
-    maxWidth: SCREEN_WIDTH - 100,
     borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#000',

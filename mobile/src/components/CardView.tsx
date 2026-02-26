@@ -27,7 +27,7 @@ interface CardViewProps {
   onDragEnd?: (dx: number, dy: number, moveX: number, moveY: number) => void;
 }
 
-export function CardView({
+export const CardView = React.memo(function CardView({
   card,
   faceDown = false,
   selected = false,
@@ -48,7 +48,6 @@ export function CardView({
   const fontSize = compact ? FONT_SIZES.CARD_COMPACT : FONT_SIZES.CARD_DEFAULT;
   const centerSize = compact ? 24 : 36;
 
-  // Drag-and-drop support - use refs to avoid stale closures
   const pan = useRef(new Animated.ValueXY()).current;
   const isDragging = useRef(false);
   const onDragEndRef = useRef(onDragEnd);
@@ -62,29 +61,44 @@ export function CardView({
   draggableRef.current = draggable;
   disabledRef.current = disabled;
 
+  const DRAG_THRESHOLD = 8;
+
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponder: () => !!draggableRef.current && !disabledRef.current,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return !!draggableRef.current && !disabledRef.current &&
-          (Math.abs(gestureState.dx) > 8 || Math.abs(gestureState.dy) > 8);
+          (Math.abs(gestureState.dx) > DRAG_THRESHOLD || Math.abs(gestureState.dy) > DRAG_THRESHOLD);
       },
       onPanResponderGrant: () => {
-        isDragging.current = true;
+        isDragging.current = false;
         pan.setOffset({ x: (pan.x as any)._value || 0, y: (pan.y as any)._value || 0 });
         pan.setValue({ x: 0, y: 0 });
-        onDragStartRef.current?.();
       },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_, gestureState) => {
+        if (!isDragging.current &&
+            (Math.abs(gestureState.dx) > DRAG_THRESHOLD || Math.abs(gestureState.dy) > DRAG_THRESHOLD)) {
+          isDragging.current = true;
+          onDragStartRef.current?.();
+        }
+        if (isDragging.current) {
+          pan.setValue({ x: gestureState.dx, y: gestureState.dy });
+        }
+      },
       onPanResponderRelease: (_, gestureState) => {
         pan.flattenOffset();
-        if (isDragging.current && onDragEndRef.current) {
-          onDragEndRef.current(gestureState.dx, gestureState.dy, gestureState.moveX, gestureState.moveY);
+        if (!isDragging.current) {
+          onPressRef.current?.();
+        } else {
+          if (onDragEndRef.current) {
+            onDragEndRef.current(gestureState.dx, gestureState.dy, gestureState.moveX, gestureState.moveY);
+          }
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: false,
+          }).start();
         }
-        Animated.spring(pan, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-        }).start();
         isDragging.current = false;
       },
       onPanResponderTerminate: (_, gestureState) => {
@@ -252,7 +266,7 @@ export function CardView({
       )}
     </TouchableOpacity>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

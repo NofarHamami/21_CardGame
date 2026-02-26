@@ -6,66 +6,209 @@ import {
   Pressable,
   Modal,
   Animated,
-  Dimensions,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { themePresets } from '../theme/colors';
+
+const tutorialColors = themePresets.classic;
 
 type Language = 'he' | 'en';
 
-const STEPS_HE = [
+interface TutorialStep {
+  title: string;
+  body: string;
+  illustration: 'welcome' | 'hand' | 'center' | 'pile21' | 'storage' | 'endTurn';
+}
+
+const STEPS_HE: TutorialStep[] = [
   {
-    title: 'ברוכים הבאים! 🎴',
+    title: 'ברוכים הבאים!',
     body: 'במשחק 21, המטרה שלך היא לסיים את ערימת ה-21 קלפים שלך לפני היריבים.',
+    illustration: 'welcome',
   },
   {
-    title: 'היד שלך ✋',
+    title: 'היד שלך',
     body: 'יש לך עד 5 קלפים ביד. הקש על קלף כדי לבחור אותו, ואז הקש על יעד כדי לשחק.',
+    illustration: 'hand',
   },
   {
-    title: 'ערימות מרכזיות 🃏',
+    title: 'ערימות מרכזיות',
     body: 'בנה ערימות מ-A עד Q. מלך הוא ג\'וקר ומתאים לכל ערימה.',
+    illustration: 'center',
   },
   {
-    title: 'ערימת ה-21 ⭐',
+    title: 'ערימת ה-21',
     body: 'הקלף העליון בערימת ה-21 שלך ניתן לשחק למרכז. רוקן אותה כדי לנצח!',
+    illustration: 'pile21',
   },
   {
-    title: 'אחסון 📦',
+    title: 'אחסון',
     body: 'ניתן לאחסן קלפים מהיד ב-5 מקומות אחסון. אחסון קלף מסיים את התור.',
+    illustration: 'storage',
   },
   {
-    title: 'סיום תור ✅',
+    title: 'סיום תור',
     body: 'עליך לשחק לפחות קלף אחד בכל תור. לא ניתן לסיים עם 5 קלפים ביד.',
+    illustration: 'endTurn',
   },
 ];
 
-const STEPS_EN = [
+const STEPS_EN: TutorialStep[] = [
   {
-    title: 'Welcome! 🎴',
+    title: 'Welcome!',
     body: 'In the 21 Card Game, your goal is to empty your 21-card pile before your opponents.',
+    illustration: 'welcome',
   },
   {
-    title: 'Your Hand ✋',
+    title: 'Your Hand',
     body: 'You hold up to 5 cards. Tap a card to select it, then tap a destination to play.',
+    illustration: 'hand',
   },
   {
-    title: 'Center Piles 🃏',
+    title: 'Center Piles',
     body: 'Build piles from Ace to Queen. Kings are wild and fit on any pile.',
+    illustration: 'center',
   },
   {
-    title: 'Your 21-Pile ⭐',
+    title: 'Your 21-Pile',
     body: 'The top card of your 21-pile can be played to center. Empty it to win!',
+    illustration: 'pile21',
   },
   {
-    title: 'Storage 📦',
+    title: 'Storage',
     body: 'Store hand cards in 5 storage slots. Playing to storage ends your turn.',
+    illustration: 'storage',
   },
   {
-    title: 'Ending a Turn ✅',
+    title: 'Ending a Turn',
     body: 'You must play at least one card each turn. You cannot end with 5 cards in hand.',
+    illustration: 'endTurn',
   },
 ];
+
+function MiniCard({ rank, suit, highlight, small }: { rank: string; suit: string; highlight?: boolean; small?: boolean }) {
+  const isRed = suit === '♥' || suit === '♦';
+  const w = small ? 32 : 42;
+  const h = small ? 48 : 62;
+  return (
+    <View style={[miniStyles.card, { width: w, height: h }, highlight && miniStyles.cardHighlight]}>
+      <Text style={[miniStyles.rank, { color: isRed ? '#c0392b' : '#2c3e50', fontSize: small ? 11 : 13 }]}>{rank}</Text>
+      <Text style={[miniStyles.suit, { color: isRed ? '#c0392b' : '#2c3e50', fontSize: small ? 12 : 16 }]}>{suit}</Text>
+    </View>
+  );
+}
+
+function FaceDownCard({ count, small }: { count?: number; small?: boolean }) {
+  const w = small ? 32 : 42;
+  const h = small ? 48 : 62;
+  return (
+    <View style={[miniStyles.faceDown, { width: w, height: h }]}>
+      <Text style={miniStyles.faceDownStar}>✦</Text>
+      {count != null && <Text style={miniStyles.faceDownCount}>{count}</Text>}
+    </View>
+  );
+}
+
+function EmptySlot({ label, small }: { label?: string; small?: boolean }) {
+  const w = small ? 32 : 42;
+  const h = small ? 48 : 62;
+  return (
+    <View style={[miniStyles.emptySlot, { width: w, height: h }]}>
+      {label && <Text style={miniStyles.emptyLabel}>{label}</Text>}
+    </View>
+  );
+}
+
+function ArrowDown() {
+  return <Text style={miniStyles.arrow}>↓</Text>;
+}
+
+function Illustration({ type, language }: { type: TutorialStep['illustration']; language: Language }) {
+  const isHe = language === 'he';
+  switch (type) {
+    case 'welcome':
+      return (
+        <View style={miniStyles.illustrationRow}>
+          <FaceDownCard count={21} />
+          <Text style={miniStyles.vs}>{isHe ? 'נגד' : 'vs'}</Text>
+          <FaceDownCard count={21} />
+        </View>
+      );
+    case 'hand':
+      return (
+        <View style={miniStyles.illustrationCol}>
+          <View style={miniStyles.illustrationRow}>
+            <MiniCard rank="3" suit="♥" />
+            <MiniCard rank="7" suit="♠" highlight />
+            <MiniCard rank="Q" suit="♦" />
+            <MiniCard rank="5" suit="♣" />
+            <MiniCard rank="K" suit="♥" />
+          </View>
+          <ArrowDown />
+          <Text style={miniStyles.hint}>{isHe ? 'הקש לבחירה, ואז הקש על יעד' : 'Tap to select, then tap target'}</Text>
+        </View>
+      );
+    case 'center':
+      return (
+        <View style={miniStyles.illustrationCol}>
+          <View style={miniStyles.illustrationRow}>
+            <MiniCard rank="A" suit="♠" />
+            <MiniCard rank="3" suit="♥" />
+            <EmptySlot label={isHe ? 'A?' : 'A?'} />
+            <MiniCard rank="K" suit="♣" highlight />
+          </View>
+          <Text style={miniStyles.hint}>{isHe ? "A ← 2 ← 3 ← ... ← Q (K = ג'וקר)" : 'A → 2 → 3 → ... → Q (K = wild)'}</Text>
+        </View>
+      );
+    case 'pile21':
+      return (
+        <View style={miniStyles.illustrationCol}>
+          <View style={miniStyles.illustrationRow}>
+            <View style={miniStyles.stackedPile}>
+              <FaceDownCard count={20} small />
+              <View style={miniStyles.stackedTop}>
+                <MiniCard rank="4" suit="♦" highlight small />
+              </View>
+            </View>
+            <ArrowDown />
+            <MiniCard rank="3" suit="♥" small />
+          </View>
+          <Text style={miniStyles.hint}>{isHe ? 'שחק את הקלף העליון לערימות המרכזיות' : 'Play top card to center piles'}</Text>
+        </View>
+      );
+    case 'storage':
+      return (
+        <View style={miniStyles.illustrationCol}>
+          <View style={miniStyles.illustrationRow}>
+            <MiniCard rank="9" suit="♠" small />
+            <EmptySlot small />
+            <MiniCard rank="2" suit="♥" small />
+            <EmptySlot small />
+            <EmptySlot small />
+          </View>
+          <Text style={miniStyles.hint}>{isHe ? '5 מקומות אחסון (מסיים תור)' : '5 storage slots (ends your turn)'}</Text>
+        </View>
+      );
+    case 'endTurn':
+      return (
+        <View style={miniStyles.illustrationCol}>
+          <View style={miniStyles.illustrationRow}>
+            <View style={miniStyles.ruleBox}>
+              <Text style={miniStyles.ruleIcon}>1+</Text>
+              <Text style={miniStyles.ruleLabel}>{isHe ? 'קלפים' : 'card(s)'}</Text>
+            </View>
+            <View style={miniStyles.ruleBox}>
+              <Text style={miniStyles.ruleIcon}>≠5</Text>
+              <Text style={miniStyles.ruleLabel}>{isHe ? 'ביד' : 'in hand'}</Text>
+            </View>
+          </View>
+        </View>
+      );
+    default:
+      return null;
+  }
+}
 
 interface TutorialProps {
   visible: boolean;
@@ -74,6 +217,7 @@ interface TutorialProps {
 }
 
 export function Tutorial({ visible, onClose, language }: TutorialProps) {
+  const { width: screenWidth } = useWindowDimensions();
   const [step, setStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -103,14 +247,14 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
     const slideIn = direction === 'next' ? 30 : -30;
 
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: slideOut, duration: 150, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: slideOut, duration: 120, useNativeDriver: true }),
     ]).start(() => {
       setStep(newStep);
       slideAnim.setValue(slideIn);
       Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
       ]).start(() => setIsAnimating(false));
     });
   };
@@ -136,7 +280,7 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.card}>
+        <View style={[styles.card, { width: Math.min(380, screenWidth - 48) }]}>
           {/* Progress dots */}
           <View style={styles.progressDots}>
             {steps.map((_, i) => (
@@ -149,6 +293,9 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
 
           <Animated.View style={[styles.stepContent, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
             <Text style={styles.title}>{current.title}</Text>
+            <View style={styles.illustrationContainer}>
+              <Illustration type={current.illustration} language={language} />
+            </View>
             <Text style={styles.body}>{current.body}</Text>
           </Animated.View>
 
@@ -194,7 +341,121 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
   );
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const miniStyles = StyleSheet.create({
+  card: {
+    backgroundColor: '#f5f0e8',
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#d0c8b8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  cardHighlight: {
+    borderColor: tutorialColors.gold,
+    borderWidth: 2,
+    shadowColor: tutorialColors.gold,
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  rank: {
+    fontWeight: 'bold',
+  },
+  suit: {},
+  faceDown: {
+    backgroundColor: tutorialColors.secondary,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: tutorialColors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  faceDownStar: {
+    fontSize: 14,
+    color: tutorialColors.mutedForeground,
+  },
+  faceDownCount: {
+    fontSize: 10,
+    color: tutorialColors.gold,
+    fontWeight: 'bold',
+    position: 'absolute',
+    bottom: 2,
+  },
+  emptySlot: {
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: `${tutorialColors.mutedForeground}66`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyLabel: {
+    fontSize: 10,
+    color: tutorialColors.mutedForeground,
+  },
+  illustrationRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  illustrationCol: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  arrow: {
+    fontSize: 20,
+    color: tutorialColors.gold,
+    fontWeight: 'bold',
+  },
+  vs: {
+    fontSize: 16,
+    color: tutorialColors.mutedForeground,
+    fontWeight: 'bold',
+    marginHorizontal: 8,
+  },
+  hint: {
+    fontSize: 11,
+    color: tutorialColors.mutedForeground,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  stackedPile: {
+    position: 'relative',
+    width: 40,
+    height: 58,
+  },
+  stackedTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  ruleBox: {
+    backgroundColor: tutorialColors.secondary,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: tutorialColors.border,
+  },
+  ruleIcon: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: tutorialColors.gold,
+  },
+  ruleLabel: {
+    fontSize: 11,
+    color: tutorialColors.mutedForeground,
+    marginTop: 2,
+  },
+});
 
 const styles = StyleSheet.create({
   overlay: {
@@ -205,13 +466,13 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   card: {
-    backgroundColor: colors.background,
+    backgroundColor: tutorialColors.background,
     borderRadius: 20,
     padding: 28,
-    width: Math.min(380, SCREEN_WIDTH - 48),
+    maxWidth: 380,
     borderWidth: 2,
-    borderColor: colors.gold,
-    shadowColor: colors.gold,
+    borderColor: tutorialColors.gold,
+    shadowColor: tutorialColors.gold,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -228,15 +489,15 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.border,
+    backgroundColor: tutorialColors.border,
   },
   dotActive: {
-    backgroundColor: colors.gold,
+    backgroundColor: tutorialColors.gold,
     width: 24,
     borderRadius: 4,
   },
   dotCompleted: {
-    backgroundColor: colors.primary,
+    backgroundColor: tutorialColors.primary,
   },
   stepContent: {
     alignItems: 'center',
@@ -245,13 +506,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: colors.gold,
+    color: tutorialColors.gold,
     marginBottom: 16,
     textAlign: 'center',
   },
+  illustrationContainer: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: `${tutorialColors.secondary}88`,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: tutorialColors.border,
+    minWidth: 220,
+    alignItems: 'center',
+  },
   body: {
     fontSize: 16,
-    color: colors.foreground,
+    color: tutorialColors.foreground,
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
@@ -276,20 +547,20 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   } as any,
   btnPrimary: {
-    backgroundColor: colors.gold,
+    backgroundColor: tutorialColors.gold,
   },
   btnPrimaryText: {
-    color: colors.background,
+    color: tutorialColors.background,
     fontWeight: 'bold',
     fontSize: 16,
   },
   btnSecondary: {
-    backgroundColor: colors.secondary,
+    backgroundColor: tutorialColors.secondary,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: tutorialColors.border,
   },
   btnSecondaryText: {
-    color: colors.foreground,
+    color: tutorialColors.foreground,
     fontWeight: '600',
     fontSize: 16,
   },
@@ -298,7 +569,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   } as any,
   skipText: {
-    color: colors.mutedForeground,
+    color: tutorialColors.mutedForeground,
     fontSize: 14,
   },
 });

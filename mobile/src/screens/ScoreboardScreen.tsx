@@ -12,27 +12,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { loadLanguagePreference } from '../utils/storage';
+import { RootStackParamList } from '../navigation/types';
 
 type Language = 'he' | 'en';
-
-type RootStackParamList = {
-  Home: undefined;
-  PlayerSetup: { gameMode: 'practice' | 'private'; numPlayers: number };
-  Game: {
-    numPlayers: number;
-    playerName?: string;
-    playerAvatar?: string;
-    gameMode?: 'practice' | 'private';
-    aiDifficulty?: string;
-  };
-  Scoreboard: {
-    players: Array<{ name: string; avatar?: string; score: number; cardsRemaining: number }>;
-    turnsPlayed: number;
-    gameMode?: string;
-    numPlayers: number;
-    aiDifficulty?: string;
-  };
-};
 
 type ScoreboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Scoreboard'>;
 type ScoreboardScreenRouteProp = RouteProp<RootStackParamList, 'Scoreboard'>;

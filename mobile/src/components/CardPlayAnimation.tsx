@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Animated, StyleSheet, Dimensions, Easing } from 'react-native';
+import { View, Animated, StyleSheet, Easing, useWindowDimensions } from 'react-native';
 import { Card } from '../models';
 import CardView from './CardView';
 import { CARD_DIMENSIONS } from '../constants';
@@ -35,6 +35,7 @@ function getDefaultSource(playerPosition: string, screenWidth: number, screenHei
 }
 
 export function CardPlayAnimation({ card, playerPosition, onComplete, sourceX, sourceY }: CardPlayAnimationProps) {
+  const windowDims = useWindowDimensions();
   const reduceMotion = isReduceMotionEnabled();
   const posX = useRef(new Animated.Value(0)).current;
   const posY = useRef(new Animated.Value(0)).current;
@@ -47,7 +48,8 @@ export function CardPlayAnimation({ card, playerPosition, onComplete, sourceX, s
       onComplete();
       return;
     }
-    const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+    const screenWidth = windowDims.width;
+    const screenHeight = windowDims.height;
     const cardW = CARD_DIMENSIONS.WIDTH;
     const cardH = CARD_DIMENSIONS.HEIGHT;
     const dest = { x: screenWidth / 2 - cardW / 2, y: screenHeight / 2 - cardH / 2 };

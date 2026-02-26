@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, useWindowDimensions } from 'react-native';
 import { Player, Card, CardSource, getPersonalPileTop, getPersonalPileSize } from '../models';
 import CardView from './CardView';
 import { SelectedCard } from '../hooks/useGameEngine';
@@ -51,6 +51,7 @@ interface PlayerAreaHorizontalProps {
   onCancelSelection?: () => void;
   hasSelection?: boolean;
   onCardDragEnd?: (card: Card, source: CardSource, sourceIndex: number, dx: number, dy: number, moveX: number, moveY: number) => void;
+  onCardDragStart?: (card: Card) => void;
 }
 
 /**
@@ -73,6 +74,7 @@ export function PlayerAreaHorizontal({
   onCancelSelection,
   hasSelection = false,
   onCardDragEnd,
+  onCardDragStart,
 }: PlayerAreaHorizontalProps) {
   const [language, setLanguage] = useState<Language>('he');
   const [isDragging21Pile, setIsDragging21Pile] = React.useState(false);
@@ -121,9 +123,7 @@ export function PlayerAreaHorizontal({
     onSelectCard(card, source, index);
   };
 
-  const screenWidth = React.useMemo(() => {
-    try { return Dimensions.get('window').width; } catch { return 800; }
-  }, []);
+  const { width: screenWidth } = useWindowDimensions();
 
   const styles = createStyles(isSmallScreen, isLargeScreen, isDesktop);
 
@@ -252,6 +252,7 @@ export function PlayerAreaHorizontal({
                 playerName={player.name}
                 newlyDrawnCards={newlyDrawnCards}
                 onCardDragEnd={onCardDragEnd}
+                onCardDragStart={onCardDragStart}
               />
             </>
           ) : (

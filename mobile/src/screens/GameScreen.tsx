@@ -11,6 +11,7 @@ import { recordGameResult } from '../utils/gameStats';
 import { playWinSound, playLoseSound } from '../utils/sounds';
 import { checkAndUnlockAchievements } from '../utils/achievements';
 import { getCurrentMoves, saveReplay } from '../utils/gameReplay';
+import { RootStackParamList } from '../navigation/types';
 
 type Language = 'he' | 'en';
 
@@ -25,28 +26,6 @@ const translations = {
     player: 'Player',
     computer: 'Computer',
   },
-};
-
-type RootStackParamList = {
-  Home: undefined;
-  PlayerSetup: { gameMode: 'practice' | 'private' | 'random'; numPlayers: number };
-  Game: {
-    numPlayers: number;
-    playerName?: string;
-    playerAvatar?: string;
-    gameMode?: 'practice' | 'private' | 'random';
-    resumeState?: string;
-    aiDifficulty?: 'easy' | 'medium' | 'hard';
-    timedMode?: boolean;
-  };
-  Scoreboard: {
-    players: Array<{ name: string; avatar?: string; score: number; cardsRemaining: number }>;
-    turnsPlayed: number;
-    gameMode?: string;
-    numPlayers: number;
-    aiDifficulty?: string;
-  };
-  WaitingRoom: { gameMode: 'random'; numPlayers: number; playerName: string; playerAvatar: string };
 };
 
 type GameScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Game'>;
