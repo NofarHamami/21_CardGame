@@ -304,8 +304,8 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
   }, [lastEvent, players]);
 
   const getPlayerPosition = (playerIndex: number): 'top' | 'bottom' | 'left' | 'right' => {
-    if (playerIndex === 0) return 'top';
-    if (playerIndex === 1) return 'bottom';
+    if (playerIndex === 0) return 'bottom';
+    if (playerIndex === 1) return 'top';
     if (playerIndex === 2) return 'left';
     return 'right';
   };
@@ -483,8 +483,8 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
       return;
     }
 
-    const centerIntent = currentPlayerIndex === 0 ? dy > 60 : dy < -60;
-    const storageIntent = currentPlayerIndex === 0 ? dy < -60 : dy > 60;
+    const centerIntent = currentPlayerIndex === 0 ? dy < -60 : dy > 60;
+    const storageIntent = currentPlayerIndex === 0 ? dy > 60 : dy < -60;
 
     if (centerIntent) {
       if (!tryPlayToCenterNearest()) tryPlayToStorage();
@@ -666,32 +666,32 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
 
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.gameLayout}>
-          {/* TOP PLAYER */}
-          {player1 && (
+          {/* TOP PLAYER (opponent) */}
+          {player2 && (
             <Animated.View
               style={[
                 styles.topSection,
-                currentPlayerIndex === 0 && { transform: [{ scale: turnPulseAnim }] },
+                currentPlayerIndex === 1 && { transform: [{ scale: turnPulseAnim }] },
               ]}
-              key={`player-0-${player1.name}-${player1.avatar}`}
+              key={`player-1-${player2.name}-${player2.avatar}`}
             >
               <PlayerArea
-                player={player1}
-                isCurrentPlayer={currentPlayerIndex === 0}
-                selectedCard={currentPlayerIndex === 0 && !isCurrentPlayerAI ? selectedCard : null}
-                onSelectCard={currentPlayerIndex === 0 && !isCurrentPlayerAI ? handleSelectCard : () => {}}
-                onPlayToStorage={currentPlayerIndex === 0 && !isCurrentPlayerAI ? playSelectedToStorage : () => {}}
-                showHandCards={currentPlayerIndex === 0}
+                player={player2}
+                isCurrentPlayer={currentPlayerIndex === 1}
+                selectedCard={currentPlayerIndex === 1 && !isCurrentPlayerAI ? selectedCard : null}
+                onSelectCard={currentPlayerIndex === 1 && !isCurrentPlayerAI ? handleSelectCard : () => {}}
+                onPlayToStorage={currentPlayerIndex === 1 && !isCurrentPlayerAI ? playSelectedToStorage : () => {}}
+                showHandCards={currentPlayerIndex === 1}
                 showStorageCards={true}
-                compact={currentPlayerIndex !== 0}
+                compact={currentPlayerIndex !== 1}
                 position="top"
-                newlyDrawnCards={getNewlyDrawnCardsForPlayer(0)}
-                onEndTurn={currentPlayerIndex === 0 && !isCurrentPlayerAI ? endCurrentTurn : undefined}
-                canEndTurn={currentPlayerIndex === 0 && canEndCurrentTurn}
-                onCancelSelection={currentPlayerIndex === 0 && !isCurrentPlayerAI ? clearSelection : undefined}
-                hasSelection={currentPlayerIndex === 0 && !!selectedCard}
-                onCardDragEnd={currentPlayerIndex === 0 && !isCurrentPlayerAI ? handleCardDragEnd : undefined}
-                onCardDragStart={currentPlayerIndex === 0 && !isCurrentPlayerAI ? handleCardDragStart : undefined}
+                newlyDrawnCards={getNewlyDrawnCardsForPlayer(1)}
+                onEndTurn={currentPlayerIndex === 1 && !isCurrentPlayerAI ? endCurrentTurn : undefined}
+                canEndTurn={currentPlayerIndex === 1 && canEndCurrentTurn}
+                onCancelSelection={currentPlayerIndex === 1 && !isCurrentPlayerAI ? clearSelection : undefined}
+                hasSelection={currentPlayerIndex === 1 && !!selectedCard}
+                onCardDragEnd={currentPlayerIndex === 1 && !isCurrentPlayerAI ? handleCardDragEnd : undefined}
+                onCardDragStart={currentPlayerIndex === 1 && !isCurrentPlayerAI ? handleCardDragStart : undefined}
               />
             </Animated.View>
           )}
@@ -791,32 +791,32 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
             )}
           </View>
 
-          {/* BOTTOM PLAYER */}
-          {player2 && (
+          {/* BOTTOM PLAYER (human) */}
+          {player1 && (
             <Animated.View
               style={[
                 styles.bottomSection,
-                currentPlayerIndex === 1 && { transform: [{ scale: turnPulseAnim }] },
+                currentPlayerIndex === 0 && { transform: [{ scale: turnPulseAnim }] },
               ]}
-              key={`player-1-${player2.name}-${player2.avatar}`}
+              key={`player-0-${player1.name}-${player1.avatar}`}
             >
               <PlayerArea
-                player={player2}
-                isCurrentPlayer={currentPlayerIndex === 1}
-                selectedCard={currentPlayerIndex === 1 && !isCurrentPlayerAI ? selectedCard : null}
-                onSelectCard={currentPlayerIndex === 1 && !isCurrentPlayerAI ? handleSelectCard : () => {}}
-                onPlayToStorage={currentPlayerIndex === 1 && !isCurrentPlayerAI ? playSelectedToStorage : () => {}}
-                showHandCards={currentPlayerIndex === 1}
+                player={player1}
+                isCurrentPlayer={currentPlayerIndex === 0}
+                selectedCard={currentPlayerIndex === 0 && !isCurrentPlayerAI ? selectedCard : null}
+                onSelectCard={currentPlayerIndex === 0 && !isCurrentPlayerAI ? handleSelectCard : () => {}}
+                onPlayToStorage={currentPlayerIndex === 0 && !isCurrentPlayerAI ? playSelectedToStorage : () => {}}
+                showHandCards={currentPlayerIndex === 0}
                 showStorageCards={true}
-                compact={currentPlayerIndex !== 1}
+                compact={currentPlayerIndex !== 0}
                 position="bottom"
-                newlyDrawnCards={getNewlyDrawnCardsForPlayer(1)}
-                onEndTurn={currentPlayerIndex === 1 && !isCurrentPlayerAI ? endCurrentTurn : undefined}
-                canEndTurn={currentPlayerIndex === 1 && canEndCurrentTurn}
-                onCancelSelection={currentPlayerIndex === 1 && !isCurrentPlayerAI ? clearSelection : undefined}
-                hasSelection={currentPlayerIndex === 1 && !!selectedCard}
-                onCardDragEnd={currentPlayerIndex === 1 && !isCurrentPlayerAI ? handleCardDragEnd : undefined}
-                onCardDragStart={currentPlayerIndex === 1 && !isCurrentPlayerAI ? handleCardDragStart : undefined}
+                newlyDrawnCards={getNewlyDrawnCardsForPlayer(0)}
+                onEndTurn={currentPlayerIndex === 0 && !isCurrentPlayerAI ? endCurrentTurn : undefined}
+                canEndTurn={currentPlayerIndex === 0 && canEndCurrentTurn}
+                onCancelSelection={currentPlayerIndex === 0 && !isCurrentPlayerAI ? clearSelection : undefined}
+                hasSelection={currentPlayerIndex === 0 && !!selectedCard}
+                onCardDragEnd={currentPlayerIndex === 0 && !isCurrentPlayerAI ? handleCardDragEnd : undefined}
+                onCardDragStart={currentPlayerIndex === 0 && !isCurrentPlayerAI ? handleCardDragStart : undefined}
               />
             </Animated.View>
           )}
@@ -854,8 +854,6 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
         winner={winner}
         language={language}
         onClose={handleCloseModal}
-        players={players}
-        turnCount={gameEngine.turnCount}
       />
     </View>
   );

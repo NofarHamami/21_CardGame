@@ -725,7 +725,7 @@ export function HandView({
             const isDragging = draggingCardId === card.id;
             const opacity = 1;
             const translateY = isDragging ? 0 : archHeight;
-            const scale = isDragging ? 1.1 : 1;
+            const scale = 1;
             
             return (
               <View
@@ -791,7 +791,7 @@ export function HandView({
                   transform: [
                     { translateY: isDraggingNew ? 0 : translateY },
                     { rotate: isDraggingNew ? '0deg' : `${rotationDegrees}deg` },
-                    { scale: isDraggingNew ? 1.1 : scale },
+                    { scale: isDraggingNew ? 1 : scale },
                   ],
                   zIndex: isDraggingNew ? 100 : index + Z_INDEX.HAND_CARD,
                   elevation: isDraggingNew ? 8 : undefined,

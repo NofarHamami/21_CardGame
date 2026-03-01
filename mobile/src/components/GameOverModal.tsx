@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Modal, TouchableOpacity, Text, StyleSheet, Share, Platform } from 'react-native';
-import { Player, getPersonalPileSize } from '../models';
+import { Player } from '../models';
 import { colors } from '../theme/colors';
 
 type Language = 'he' | 'en';
@@ -12,10 +12,7 @@ const translations = {
     wins: 'ניצח!',
     newGame: 'משחק חדש',
     playAgain: 'שחק שוב',
-    results: 'תוצאות',
-    cardsLeft: 'קלפים נותרו',
     share: 'שתף',
-    rank: 'מקום',
   },
   en: {
     gameOver: 'Game Over!',
@@ -23,10 +20,7 @@ const translations = {
     wins: 'wins!',
     newGame: 'New Game',
     playAgain: 'Play Again',
-    results: 'Results',
-    cardsLeft: 'cards left',
     share: 'Share',
-    rank: 'Rank',
   },
 };
 
@@ -35,42 +29,17 @@ interface GameOverModalProps {
   winner: Player | null;
   language: Language;
   onClose: () => void;
-  players?: Player[];
-  turnCount?: number;
 }
 
-function getRankEmoji(rank: number): string {
-  switch (rank) {
-    case 1: return '🥇';
-    case 2: return '🥈';
-    case 3: return '🥉';
-    default: return `#${rank}`;
-  }
-}
-
-export function GameOverModal({ visible, winner, language, onClose, players, turnCount }: GameOverModalProps) {
+export function GameOverModal({ visible, winner, language, onClose }: GameOverModalProps) {
   const t = translations[language];
   const humanWon = winner && !winner.isAI;
 
-  const sortedPlayers = React.useMemo(() => {
-    if (!players || players.length === 0) return [];
-    return [...players].sort((a, b) => {
-      if (winner && a.playerNumber === winner.playerNumber) return -1;
-      if (winner && b.playerNumber === winner.playerNumber) return 1;
-      return getPersonalPileSize(a) - getPersonalPileSize(b);
-    });
-  }, [players, winner]);
-
   const handleShare = async () => {
     if (!winner) return;
-    const rankLines = sortedPlayers.map((p, i) => {
-      const pileLeft = getPersonalPileSize(p);
-      return `${getRankEmoji(i + 1)} ${p.name}: ${pileLeft} ${t.cardsLeft}`;
-    }).join('\n');
-
     const message = language === 'he'
-      ? `21 Card Game\n${winner.name} ${t.wins}\n\n${rankLines}${turnCount ? `\n\nתורות: ${turnCount}` : ''}`
-      : `21 Card Game\n${winner.name} ${t.wins}\n\n${rankLines}${turnCount ? `\n\nTurns: ${turnCount}` : ''}`;
+      ? `21 Card Game\n${winner.name} ${t.wins}`
+      : `21 Card Game\n${winner.name} ${t.wins}`;
 
     try {
       await Share.share({ message });
@@ -105,38 +74,6 @@ export function GameOverModal({ visible, winner, language, onClose, players, tur
             <Text style={styles.winnerText} accessibilityRole="text">
               {winner.avatar} {winner.name} {t.wins}
             </Text>
-          )}
-
-          {/* Results Table */}
-          {sortedPlayers.length > 0 && (
-            <View style={styles.resultsContainer}>
-              <Text style={styles.resultsTitle}>{t.results}</Text>
-              {sortedPlayers.map((player, index) => {
-                const pileLeft = getPersonalPileSize(player);
-                const isWinner = winner && player.playerNumber === winner.playerNumber;
-                return (
-                  <View
-                    key={player.playerNumber}
-                    style={[styles.resultRow, isWinner && styles.resultRowWinner]}
-                    accessibilityLabel={`${getRankEmoji(index + 1)} ${player.name}: ${pileLeft} ${t.cardsLeft}`}
-                  >
-                    <Text style={styles.resultRank}>{getRankEmoji(index + 1)}</Text>
-                    <Text style={styles.resultAvatar}>{player.avatar || '😎'}</Text>
-                    <Text style={[styles.resultName, isWinner && styles.resultNameWinner]} numberOfLines={1}>
-                      {player.name}
-                    </Text>
-                    <Text style={[styles.resultCards, isWinner && styles.resultCardsWinner]}>
-                      {pileLeft} {t.cardsLeft}
-                    </Text>
-                  </View>
-                );
-              })}
-              {turnCount != null && turnCount > 0 && (
-                <Text style={styles.turnCount}>
-                  {language === 'he' ? `${turnCount} תורות` : `${turnCount} turns`}
-                </Text>
-              )}
-            </View>
           )}
 
           {/* Actions */}
@@ -212,70 +149,6 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     marginBottom: 16,
     fontWeight: '600',
-  },
-  resultsContainer: {
-    width: '100%',
-    backgroundColor: `${colors.secondary}88`,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  resultsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.mutedForeground,
-    textAlign: 'center',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  resultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    gap: 8,
-  },
-  resultRowWinner: {
-    backgroundColor: `${colors.gold}22`,
-  },
-  resultRank: {
-    fontSize: 18,
-    width: 30,
-    textAlign: 'center',
-  },
-  resultAvatar: {
-    fontSize: 20,
-    width: 28,
-    textAlign: 'center',
-  },
-  resultName: {
-    flex: 1,
-    fontSize: 14,
-    color: colors.foreground,
-    fontWeight: '500',
-  },
-  resultNameWinner: {
-    fontWeight: 'bold',
-    color: colors.gold,
-  },
-  resultCards: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-  },
-  resultCardsWinner: {
-    color: colors.gold,
-    fontWeight: '600',
-  },
-  turnCount: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-    textAlign: 'center',
-    marginTop: 8,
-    fontStyle: 'italic',
   },
   actionsRow: {
     flexDirection: 'row',

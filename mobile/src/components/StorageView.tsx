@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Player, Card, CardSource, getStorageTop, getStorageStackSize, STORAGE_STACKS } from '../models';
+import { Player, Card, CardSource, getStorageTop, getStorageStack, STORAGE_STACKS } from '../models';
 import CardView from './CardView';
 import { SelectedCard } from '../hooks/useGameEngine';
 import { colors } from '../theme/colors';
-import { SPACING, FONT_SIZES } from '../constants';
+import { SPACING, FONT_SIZES, CARD_DIMENSIONS } from '../constants';
 import { loadLanguagePreference } from '../utils/storage';
 
 type Language = 'he' | 'en';
@@ -77,43 +77,64 @@ export const StorageView = React.memo(function StorageView({
   const containerStyle = horizontal ? styles.horizontalStorageRow : styles.verticalStorageSlotsColumn;
   const labelStyle = horizontal ? styles.horizontalLabel : styles.verticalLabel;
 
+  const cardHeight = compact ? CARD_DIMENSIONS.COMPACT_HEIGHT : CARD_DIMENSIONS.HEIGHT;
+  const stackOffset = compact ? 16 : 20;
+
   return (
     <View style={styles.container} accessibilityLabel={language === 'he' ? `אזור אחסון עם ${STORAGE_STACKS} מקומות` : `Storage area with ${STORAGE_STACKS} slots`}>
       <View style={containerStyle}>
         {Array.from({ length: STORAGE_STACKS }).map((_, index) => {
           const topCard = getStorageTop(player, index);
-          const stackSize = getStorageStackSize(player, index);
+          const stackCards = getStorageStack(player, index);
+          const stackSize = stackCards.length;
           const isDraggable = isCurrentPlayer && !!topCard && !!onCardDragEnd;
-          const isBeingDragged = draggingIndex === index;
+          const stackHeight = stackSize > 0 ? cardHeight + (stackSize - 1) * stackOffset : cardHeight;
+
           return (
-            <View key={`storage-${index}`} nativeID={`storage-slot-${index}`} style={showTargetHighlight && styles.storageHighlight}>
-              <View>
-                {/* Static pile background - visible when top card is being dragged */}
-                {isBeingDragged && stackSize > 1 && (
-                  <View style={{ position: 'absolute' }} pointerEvents="none">
-                    <CardView
-                      card={null}
-                      faceDown={true}
-                      showCount={stackSize - 1}
-                      compact={compact}
-                      disabled={true}
-                    />
-                  </View>
-                )}
+            <View
+              key={`storage-${index}`}
+              nativeID={`storage-slot-${index}`}
+              style={[
+                showTargetHighlight && styles.storageHighlight,
+                { height: stackHeight },
+              ]}
+            >
+              {stackSize === 0 ? (
                 <CardView
-                  card={topCard}
-                  selected={isCurrentPlayer && isCardSelected(CardSource.STORAGE, index)}
-                  onPress={isCurrentPlayer ? () => handleStoragePress(index) : undefined}
-                  showCount={isBeingDragged ? undefined : (stackSize > 1 ? stackSize : undefined)}
+                  card={null}
                   compact={compact}
-                  draggable={isDraggable}
-                  onDragStart={() => setDraggingIndex(index)}
-                  onDragEnd={onCardDragEnd && topCard ? (dx: number, dy: number, moveX: number, moveY: number) => {
-                    setDraggingIndex(null);
-                    onCardDragEnd(topCard, CardSource.STORAGE, index, dx, dy, moveX, moveY);
-                  } : undefined}
+                  onPress={isCurrentPlayer ? () => handleStoragePress(index) : undefined}
                 />
-              </View>
+              ) : (
+                stackCards.map((card, cardIdx) => {
+                  const isTop = cardIdx === stackSize - 1;
+                  return (
+                    <View
+                      key={`storage-${index}-${cardIdx}`}
+                      style={{
+                        position: cardIdx === 0 ? 'relative' : 'absolute',
+                        top: cardIdx * stackOffset,
+                        zIndex: cardIdx,
+                      }}
+                      pointerEvents={isTop ? 'auto' : 'none'}
+                    >
+                      <CardView
+                        card={card}
+                        selected={isTop && isCurrentPlayer && isCardSelected(CardSource.STORAGE, index)}
+                        onPress={isTop && isCurrentPlayer ? () => handleStoragePress(index) : undefined}
+                        compact={compact}
+                        disabled={!isTop}
+                        draggable={isTop && isDraggable}
+                        onDragStart={isTop ? () => setDraggingIndex(index) : undefined}
+                        onDragEnd={isTop && onCardDragEnd && topCard ? (dx: number, dy: number, moveX: number, moveY: number) => {
+                          setDraggingIndex(null);
+                          onCardDragEnd(topCard, CardSource.STORAGE, index, dx, dy, moveX, moveY);
+                        } : undefined}
+                      />
+                    </View>
+                  );
+                })
+              )}
             </View>
           );
         })}

@@ -215,7 +215,7 @@ export const CardView = React.memo(function CardView({
             <Text style={[styles.suitTextSmall, { color: cardColor }]}>{suitSymbol}</Text>
           </View>
           <View style={styles.centerArea}>
-            <Text style={[styles.centerSuit, { color: cardColor, fontSize: centerSize }]}>{suitSymbol}</Text>
+            <Text style={[styles.centerSuit, { color: cardColor, fontSize: centerSize, fontWeight: 'bold' }]}>{rankSymbol}</Text>
           </View>
           <View style={styles.cornerBottom}>
             <Text style={[styles.rankText, { color: cardColor, fontSize }]}>{rankSymbol}</Text>
@@ -253,7 +253,7 @@ export const CardView = React.memo(function CardView({
         <Text style={[styles.suitTextSmall, { color: cardColor }]}>{suitSymbol}</Text>
       </View>
       <View style={styles.centerArea}>
-        <Text style={[styles.centerSuit, { color: cardColor, fontSize: centerSize }]}>{suitSymbol}</Text>
+        <Text style={[styles.centerSuit, { color: cardColor, fontSize: centerSize, fontWeight: 'bold' }]}>{rankSymbol}</Text>
       </View>
       <View style={styles.cornerBottom}>
         <Text style={[styles.rankText, { color: cardColor, fontSize }]}>{rankSymbol}</Text>

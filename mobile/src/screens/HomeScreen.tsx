@@ -266,7 +266,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             {selectedGameMode === 'practice' && (
               <>
                 <Text style={styles.sectionTitle}>{t.difficultyTitle}</Text>
-                <View style={styles.playerButtons}>
+                <View style={[styles.playerButtons, language === 'he' && { flexDirection: 'row-reverse' }]}>
                   {(['easy', 'medium', 'hard'] as AIDifficulty[]).map((d) => {
                     const isSelected = aiDifficulty === d;
                     const label = d === 'easy' ? t.difficultyEasy : d === 'medium' ? t.difficultyMedium : t.difficultyHard;
