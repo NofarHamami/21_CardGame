@@ -1,0 +1,5 @@
+# Only include 21CardGame folder
+card-arch-designer/
+*.png
+node_modules/
+.expo/
