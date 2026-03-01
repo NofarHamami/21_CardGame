@@ -11,7 +11,7 @@ import {
   Animated,
   useWindowDimensions,
 } from 'react-native';
-import { Card, CardSource, Player, STORAGE_STACKS, getHandCard, getPersonalPileTop, getStorageTop } from '../models';
+import { Card, CardSource, Player, STORAGE_STACKS, getHandCard, getPersonalPileTop, getStorageTop, getPersonalPileSize } from '../models';
 import { AIMove } from '../engine/AIPlayer';
 import { MAX_HAND_SIZE } from '../models/Player';
 import {
@@ -156,6 +156,7 @@ function estimateHandCardPosition(
 interface GameBoardProps {
   gameEngine: UseGameEngineReturn;
   onNewGame: () => void;
+  onRematch?: () => void;
 }
 
 const FALLBACK_DIMENSIONS = { width: 800, height: 600 };
@@ -184,7 +185,7 @@ const getResponsiveStyles = (screenWidth: number, screenHeight: number) => {
   };
 };
 
-export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
+export function GameBoard({ gameEngine, onNewGame, onRematch }: GameBoardProps) {
   const windowDims = useWindowDimensions();
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [tutorialVisible, setTutorialVisible] = useState(false);
@@ -248,6 +249,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
     resetGame,
     updatePlayerNameAndAvatar,
     getHint,
+    turnCount,
   } = gameEngine;
 
   // Pulse animation on turn change
@@ -556,6 +558,8 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
     playerPosition: 'top' | 'bottom' | 'left' | 'right';
     sourceX?: number;
     sourceY?: number;
+    destX?: number;
+    destY?: number;
     key: number;
   } | null>(null);
   const cardPlayAnimKey = React.useRef(0);
@@ -581,11 +585,25 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
         srcY = pos.y;
       }
 
+      let destX: number | undefined;
+      let destY: number | undefined;
+      const pileMatch = lastEvent.destination.match(/Center Pile (\d+)/);
+      if (pileMatch) {
+        const pileIdx = parseInt(pileMatch[1], 10) - 1;
+        const pileLayout = centerPileLayoutsRef.current[pileIdx];
+        if (pileLayout) {
+          destX = pileLayout.x;
+          destY = pileLayout.y;
+        }
+      }
+
       setCardPlayAnim({
         card: lastEvent.card,
         playerPosition: playerPos,
         sourceX: srcX,
         sourceY: srcY,
+        destX,
+        destY,
         key: cardPlayAnimKey.current,
       });
     }
@@ -724,13 +742,6 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
             )}
 
             <View style={styles.centerSection}>
-              {gameEngine.turnTimeRemaining != null && !isCurrentPlayerAI && (
-                <View style={[styles.timerContainer, gameEngine.turnTimeRemaining <= 5 && styles.timerContainerUrgent]}>
-                  <Text style={[styles.timerText, gameEngine.turnTimeRemaining <= 5 && styles.timerTextUrgent]}>
-                    {gameEngine.turnTimeRemaining}s
-                  </Text>
-                </View>
-              )}
               <CenterArea
                 centerPiles={centerPiles}
                 stockPileSize={stockPileSize}
@@ -745,6 +756,7 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
                 draggingCard={isDragging ? draggingCard : null}
                 invalidPileIndex={invalidPileIndex}
                 invalidPileKey={invalidMoveCount}
+                turnTimeRemaining={gameEngine.turnTimeRemaining}
               />
               <ErrorToast message={errorMessage} animKey={invalidMoveCount} />
               {isCurrentPlayerAI && (
@@ -832,6 +844,8 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
           playerPosition={cardPlayAnim.playerPosition}
           sourceX={cardPlayAnim.sourceX}
           sourceY={cardPlayAnim.sourceY}
+          destX={cardPlayAnim.destX}
+          destY={cardPlayAnim.destY}
           onComplete={handleCardPlayAnimComplete}
         />
       )}
@@ -853,7 +867,10 @@ export function GameBoard({ gameEngine, onNewGame }: GameBoardProps) {
         visible={isGameOver}
         winner={winner}
         language={language}
+        turnsPlayed={turnCount}
+        players={players.map(p => ({ name: p.name, cardsRemaining: getPersonalPileSize(p) }))}
         onClose={handleCloseModal}
+        onRematch={onRematch}
       />
     </View>
   );
@@ -960,29 +977,6 @@ const getStyles = (screenWidth: number, screenHeight: number, sideWidth: number,
       color: colors.primaryForeground,
       fontSize: 14,
       fontWeight: 'bold',
-    },
-    timerContainer: {
-      backgroundColor: colors.secondary,
-      paddingHorizontal: 16,
-      paddingVertical: 6,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignSelf: 'center',
-      marginBottom: 4,
-    },
-    timerContainerUrgent: {
-      backgroundColor: colors.destructive,
-      borderColor: colors.destructive,
-    },
-    timerText: {
-      color: colors.gold,
-      fontSize: 16,
-      fontWeight: 'bold',
-      textAlign: 'center',
-    },
-    timerTextUrgent: {
-      color: colors.primaryForeground,
     },
     aiIndicator: {
       backgroundColor: colors.secondary,

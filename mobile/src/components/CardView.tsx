@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Card, getSuitSymbol, getRankSymbol, isCardRed } from '../models';
-import { colors } from '../theme/colors';
+import { colors, hslToHex } from '../theme/colors';
 import { CARD_DIMENSIONS, FONT_SIZES } from '../constants';
 
 interface CardViewProps {
@@ -137,17 +137,6 @@ export const CardView = React.memo(function CardView({
     const cardLabel = showCount ? `${showCount} face down cards` : 'Face down card';
     const isInteractive = !disabled && !!onPress;
 
-    const hslToHex = (h: number, s: number, l: number): string => {
-      l /= 100;
-      const a = (s * Math.min(l, 1 - l)) / 100;
-      const f = (n: number) => {
-        const k = (n + h / 30) % 12;
-        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-        return Math.round(255 * color).toString(16).padStart(2, '0');
-      };
-      return `#${f(0)}${f(8)}${f(4)}`;
-    };
-
     const gradientColors = [colors.secondary, hslToHex(145, 40, 20), hslToHex(145, 50, 12)] as const;
 
     return (
@@ -208,6 +197,7 @@ export const CardView = React.memo(function CardView({
           activeOpacity={0.7}
           accessibilityRole={isInteractive ? 'button' : undefined}
           accessibilityLabel={cardLabel}
+          accessibilityHint={draggable ? 'Drag to play or tap to select' : undefined}
           accessibilityState={{ disabled: disabled || !onPress, selected }}
         >
           <View style={styles.cornerTop}>

@@ -10,6 +10,7 @@ const AI_DIFFICULTY_KEY = '@ai_difficulty';
 const FIRST_LAUNCH_KEY = '@first_launch_done';
 const REDUCE_MOTION_KEY = '@reduce_motion';
 const THEME_KEY = '@theme_preference';
+const TUTORIAL_DISMISSED_KEY = '@tutorial_dismissed';
 
 export interface PlayerPreferences {
   name: string;
@@ -319,4 +320,19 @@ export async function loadThemePreference(): Promise<ThemePreset> {
     const value = await storage.getItem(THEME_KEY);
     return (value === 'classic' || value === 'blue' || value === 'purple' || value === 'red') ? value : 'classic';
   } catch { return 'classic'; }
+}
+
+export async function saveTutorialDismissed(dismissed: boolean): Promise<void> {
+  try {
+    const storage = getStorage();
+    await storage.setItem(TUTORIAL_DISMISSED_KEY, dismissed ? 'true' : 'false');
+  } catch { /* ignore */ }
+}
+
+export async function loadTutorialDismissed(): Promise<boolean> {
+  try {
+    const storage = getStorage();
+    const value = await storage.getItem(TUTORIAL_DISMISSED_KEY);
+    return value === 'true';
+  } catch { return false; }
 }

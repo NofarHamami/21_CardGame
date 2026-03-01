@@ -51,6 +51,7 @@ export interface UseGameEngineReturn {
   selectedCard: SelectedCard | null;
   turnCount: number;
   turnTimeRemaining: number | null;
+  humanUsedStorage: boolean;
 
   startGame: (numPlayers: number, playerConfigs?: Array<{ name: string; avatar?: string; isAI?: boolean }>, aiDifficulty?: AIDifficulty) => void;
   setTimedMode: (enabled: boolean) => void;
@@ -81,6 +82,7 @@ export function useGameEngine(): UseGameEngineReturn {
   const prevPlayerIndexRef = useRef<number>(-1);
   const aiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const gameModeRef = useRef<string>('practice');
+  const humanUsedStorageRef = useRef(false);
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
   const TURN_TIME_SECONDS = 30;
@@ -206,9 +208,13 @@ export function useGameEngine(): UseGameEngineReturn {
   // Sound effects on events (only for human player moves)
   useEffect(() => {
     if (!gameState.lastEvent) return;
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (currentPlayer?.isAI) return;
-    switch (gameState.lastEvent.type) {
+    const event = gameState.lastEvent;
+    // Use the player from the event when available, since currentPlayerIndex
+    // may have already advanced (e.g. after playing to storage)
+    const eventPlayer = 'player' in event ? event.player : null;
+    const isAI = eventPlayer ? eventPlayer.isAI : gameState.players[gameState.currentPlayerIndex]?.isAI;
+    if (isAI) return;
+    switch (event.type) {
       case 'CARD_PLAYED':
         playCardPlaySound();
         break;
@@ -228,11 +234,6 @@ export function useGameEngine(): UseGameEngineReturn {
       turnTimerRef.current = null;
     }
     if (!timedModeEnabled || !gameState.gameStarted || gameState.gameOver) {
-      setTurnTimeRemaining(null);
-      return;
-    }
-    const current = gameState.players[gameState.currentPlayerIndex];
-    if (current?.isAI) {
       setTurnTimeRemaining(null);
       return;
     }
@@ -265,6 +266,7 @@ export function useGameEngine(): UseGameEngineReturn {
     try {
       logger.debug('Starting game with', numPlayers, 'players, AI difficulty:', aiDifficulty || 'medium');
       startRecording();
+      humanUsedStorageRef.current = false;
       const newState = setupGame(numPlayers, playerConfigs, aiDifficulty);
       setGameState(newState);
       setSelectedCard(null);
@@ -285,6 +287,7 @@ export function useGameEngine(): UseGameEngineReturn {
       aiTimeoutRef.current = null;
     }
     clearSavedGame();
+    humanUsedStorageRef.current = false;
     setGameState(createInitialState());
     setSelectedCard(null);
     setTurnCount(0);
@@ -337,6 +340,7 @@ export function useGameEngine(): UseGameEngineReturn {
     const success = newState.lastEvent?.type !== 'INVALID_MOVE';
     if (success) {
       const player = currentState.players[currentState.currentPlayerIndex];
+      if (!player?.isAI) humanUsedStorageRef.current = true;
       recordMove({
         turn: turnCount,
         playerIndex: currentState.currentPlayerIndex,
@@ -385,6 +389,7 @@ export function useGameEngine(): UseGameEngineReturn {
     const success = newState.lastEvent?.type !== 'INVALID_MOVE';
     if (success) {
       const player = currentState.players[currentState.currentPlayerIndex];
+      if (!player?.isAI) humanUsedStorageRef.current = true;
       recordMove({
         turn: turnCount,
         playerIndex: currentState.currentPlayerIndex,
@@ -455,6 +460,7 @@ export function useGameEngine(): UseGameEngineReturn {
     selectedCard,
     turnCount,
     turnTimeRemaining,
+    humanUsedStorage: humanUsedStorageRef.current,
     startGame,
     setTimedMode: setTimedModeEnabled,
     selectCard,

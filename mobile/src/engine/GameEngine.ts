@@ -369,35 +369,25 @@ export function drawCardFromStockDelayed(state: GameState, playerIndex: number):
 }
 
 /**
- * Get the next player index in clockwise order around the board.
- * Board positions: Player 0 (Top) → Player 3 (Right) → Player 1 (Bottom) → Player 2 (Left) → Player 0
+ * Get the next player index in clockwise order around the board (as seen on screen).
  * 
- * For 2 players: 0 → 1 → 0 (Top → Bottom)
- * For 3 players: 0 → 2 → 1 → 0 (Top → Left → Bottom)
- * For 4 players: 0 → 3 → 1 → 2 → 0 (Top → Right → Bottom → Left)
+ * 4-player positions: Index 0 = Bottom, Index 1 = Top, Index 2 = Left, Index 3 = Right
+ * Clockwise: Right(3) → Bottom(0) → Left(2) → Top(1) → Right(3)
+ * 
+ * 3-player positions: Index 0 = Bottom, Index 1 = Top, Index 2 = Right
+ * Clockwise: Top(1) → Right(2) → Bottom(0) → Top(1)
  */
 function getNextPlayerIndexClockwise(currentIndex: number, numPlayers: number): number {
-  // Clockwise mapping based on board positions:
-  // Index 0 = Top, Index 1 = Bottom, Index 2 = Left, Index 3 = Right
-  const clockwiseMap: Record<number, number> = {
-    0: 3, // Top → Right (for 4 players) or Bottom (for 2 players)
-    1: 2, // Bottom → Left (for 3+ players) or Top (for 2 players)
-    2: 0, // Left → Top
-    3: 1, // Right → Bottom
-  };
-
   if (numPlayers === 2) {
-    // For 2 players: Top (0) ↔ Bottom (1)
     return currentIndex === 0 ? 1 : 0;
   } else if (numPlayers === 3) {
-    // For 3 players: Top (0) → Left (2) → Bottom (1) → Top
-    if (currentIndex === 0) return 2; // Top → Left
-    if (currentIndex === 2) return 1; // Left → Bottom
-    if (currentIndex === 1) return 0; // Bottom → Top
-    return 0; // Fallback
+    // Top (1) → Right (2) → Bottom (0) → Top (1)
+    const map: Record<number, number> = { 0: 1, 1: 2, 2: 0 };
+    return map[currentIndex] ?? 0;
   } else {
-    // For 4 players: Top (0) → Right (3) → Bottom (1) → Left (2) → Top
-    return clockwiseMap[currentIndex] ?? 0;
+    // Right (3) → Bottom (0) → Left (2) → Top (1) → Right (3)
+    const map: Record<number, number> = { 0: 2, 2: 1, 1: 3, 3: 0 };
+    return map[currentIndex] ?? 0;
   }
 }
 
@@ -500,7 +490,7 @@ export function playToCenter(
   logger.debug('playToCenter: CAN place card - proceeding');
 
   // Remove card from source
-  const [removedCard, updatedPlayer] = removeCardFromSource(player, source, sourceIndex);
+  const [, updatedPlayer] = removeCardFromSource(player, source, sourceIndex);
   player = updatedPlayer;
 
   // Place on center pile
@@ -645,7 +635,7 @@ export function playToStorage(
   }
 
   // Remove card from source
-  const [removedCard, updatedPlayer] = removeCardFromSource(player, source, sourceIndex);
+  const [, updatedPlayer] = removeCardFromSource(player, source, sourceIndex);
   player = updatedPlayer;
 
   // Place in storage

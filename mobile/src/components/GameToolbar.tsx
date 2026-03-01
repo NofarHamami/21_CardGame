@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Pressable,
   Platform,
   GestureResponderEvent,
+  Animated,
 } from 'react-native';
 import { colors } from '../theme/colors';
 
@@ -22,6 +23,40 @@ interface GameToolbarProps {
   onOpenTutorial: () => void;
   onHint?: () => void;
   hintDisabled?: boolean;
+}
+
+function HintButton({ onPress, disabled, language }: { onPress: () => void; disabled: boolean; language: Language }) {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (disabled) {
+      pulseAnim.setValue(1);
+      return;
+    }
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [disabled, pulseAnim]);
+
+  return (
+    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+      <TouchableOpacity
+        style={[styles.toolbarButton, styles.hintButton, disabled && styles.toolbarButtonDisabled]}
+        onPress={onPress}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={language === 'he' ? 'רמז' : 'Hint'}
+        accessibilityHint={language === 'he' ? 'מציג את המהלך הטוב ביותר' : 'Shows the best move'}
+      >
+        <Text style={styles.buttonText}>💡</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
 }
 
 export function GameToolbar({
@@ -144,15 +179,11 @@ export function GameToolbar({
       </TouchableOpacity>
 
       {onHint && (
-        <TouchableOpacity
-          style={[styles.toolbarButton, hintDisabled && styles.toolbarButtonDisabled]}
+        <HintButton
           onPress={onHint}
           disabled={hintDisabled}
-          accessibilityRole="button"
-          accessibilityLabel={language === 'he' ? 'רמז' : 'Hint'}
-        >
-          <Text style={styles.buttonText}>💡</Text>
-        </TouchableOpacity>
+          language={language}
+        />
       )}
     </View>
   );
@@ -183,6 +214,12 @@ const styles = StyleSheet.create({
     elevation: 8,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   } as any,
+  hintButton: {
+    borderColor: colors.gold,
+    shadowColor: colors.gold,
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+  },
   toolbarButtonDisabled: {
     opacity: 0.4,
   },

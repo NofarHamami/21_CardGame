@@ -117,7 +117,7 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
             gamesPlayed: stats.gamesPlayed,
             gamesWon: stats.gamesWon,
             currentWinStreak: stats.currentWinStreak,
-            usedStorage: false,
+            usedStorage: gameEngine.humanUsedStorage,
           });
         });
         saveReplay({
@@ -162,10 +162,32 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
     navigation.navigate('Home');
   };
 
+  const handleRematch = () => {
+    hasNavigatedToScoreboard.current = false;
+    hasRecordedResult.current = false;
+    gameEngine.resetGame();
+
+    const playerConfigs: Array<{ name: string; avatar?: string; isAI?: boolean }> = [];
+    const firstPlayerAvatar = playerAvatar || AVATARS[0];
+    playerConfigs.push({ name: playerName || `${t.player} 1`, avatar: firstPlayerAvatar });
+    let avatarOffset = 1;
+    for (let i = 1; i < numPlayers; i++) {
+      const isAI = gameMode === 'practice';
+      const avatarIndex = (avatarOffset - 1) % AVATARS.length;
+      const name = isAI
+        ? (numPlayers === 2 ? t.computer : `${t.computer} ${i}`)
+        : (numPlayers === 2 ? t.player : `${t.player} ${i + 1}`);
+      playerConfigs.push({ name, avatar: AVATARS[avatarIndex], isAI });
+      avatarOffset++;
+    }
+    gameEngine.startGame(numPlayers, playerConfigs, aiDifficulty || 'medium');
+    if (timedMode) gameEngine.setTimedMode(true);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.background} />
-      <GameBoard gameEngine={gameEngine} onNewGame={handleNewGame} />
+      <GameBoard gameEngine={gameEngine} onNewGame={handleNewGame} onRematch={handleRematch} />
     </View>
   );
 }

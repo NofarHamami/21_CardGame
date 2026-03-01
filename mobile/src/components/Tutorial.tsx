@@ -8,17 +8,16 @@ import {
   Animated,
   Platform,
   useWindowDimensions,
+  Switch,
 } from 'react-native';
-import { themePresets } from '../theme/colors';
-
-const tutorialColors = themePresets.classic;
+import { colors } from '../theme/colors';
 
 type Language = 'he' | 'en';
 
 interface TutorialStep {
   title: string;
   body: string;
-  illustration: 'welcome' | 'hand' | 'center' | 'pile21' | 'storage' | 'endTurn';
+  illustration: 'welcome' | 'hand' | 'center' | 'pile21' | 'storage' | 'endTurn' | 'drag' | 'kings';
 }
 
 const STEPS_HE: TutorialStep[] = [
@@ -33,9 +32,19 @@ const STEPS_HE: TutorialStep[] = [
     illustration: 'hand',
   },
   {
+    title: 'גרירת קלפים',
+    body: 'אפשר גם לגרור קלף ישירות מהיד לערימה מרכזית או לאחסון.',
+    illustration: 'drag',
+  },
+  {
     title: 'ערימות מרכזיות',
-    body: 'בנה ערימות מ-A עד Q. מלך הוא ג\'וקר ומתאים לכל ערימה.',
+    body: 'בנה ערימות מ-A עד Q. כשערימה מגיעה ל-Q, היא מתרוקנת והקלפים חוזרים לחפיסה.',
     illustration: 'center',
+  },
+  {
+    title: 'מלך = ג\'וקר',
+    body: 'מלך (K) הוא קלף ג\'וקר שמתאים לכל ערימה מרכזית. ניתן להתחיל ערימה עם מלך או לשחק אותו במקום כל קלף.',
+    illustration: 'kings',
   },
   {
     title: 'ערימת ה-21',
@@ -66,9 +75,19 @@ const STEPS_EN: TutorialStep[] = [
     illustration: 'hand',
   },
   {
+    title: 'Drag & Drop',
+    body: 'You can also drag a card directly from your hand to a center pile or storage slot.',
+    illustration: 'drag',
+  },
+  {
     title: 'Center Piles',
-    body: 'Build piles from Ace to Queen. Kings are wild and fit on any pile.',
+    body: 'Build piles from Ace to Queen. When a pile reaches Queen, it clears and cards return to the stock.',
     illustration: 'center',
+  },
+  {
+    title: 'Kings = Wild',
+    body: 'Kings (K) are wild cards that fit on any center pile. You can start a pile with a King or play it in place of any card.',
+    illustration: 'kings',
   },
   {
     title: 'Your 21-Pile',
@@ -149,6 +168,17 @@ function Illustration({ type, language }: { type: TutorialStep['illustration']; 
           <Text style={miniStyles.hint}>{isHe ? 'הקש לבחירה, ואז הקש על יעד' : 'Tap to select, then tap target'}</Text>
         </View>
       );
+    case 'drag':
+      return (
+        <View style={miniStyles.illustrationCol}>
+          <View style={miniStyles.illustrationRow}>
+            <MiniCard rank="7" suit="♠" highlight />
+            <Text style={miniStyles.dragArrow}>⟹</Text>
+            <MiniCard rank="6" suit="♥" small />
+          </View>
+          <Text style={miniStyles.hint}>{isHe ? 'גרור קלף ישירות ליעד' : 'Drag card directly to target'}</Text>
+        </View>
+      );
     case 'center':
       return (
         <View style={miniStyles.illustrationCol}>
@@ -159,6 +189,22 @@ function Illustration({ type, language }: { type: TutorialStep['illustration']; 
             <MiniCard rank="K" suit="♣" highlight />
           </View>
           <Text style={miniStyles.hint}>{isHe ? "A ← 2 ← 3 ← ... ← Q (K = ג'וקר)" : 'A → 2 → 3 → ... → Q (K = wild)'}</Text>
+        </View>
+      );
+    case 'kings':
+      return (
+        <View style={miniStyles.illustrationCol}>
+          <View style={miniStyles.illustrationRow}>
+            <MiniCard rank="K" suit="♠" highlight />
+            <Text style={miniStyles.dragArrow}>→</Text>
+            <MiniCard rank="5" suit="♥" small />
+          </View>
+          <View style={[miniStyles.illustrationRow, { marginTop: 4 }]}>
+            <MiniCard rank="K" suit="♦" highlight />
+            <Text style={miniStyles.dragArrow}>→</Text>
+            <EmptySlot small label="?" />
+          </View>
+          <Text style={miniStyles.hint}>{isHe ? 'K מתאים לכל ערימה ולכל מיקום' : 'K fits any pile at any position'}</Text>
         </View>
       );
     case 'pile21':
@@ -214,12 +260,15 @@ interface TutorialProps {
   visible: boolean;
   onClose: () => void;
   language: Language;
+  onDontShowAgain?: (dismissed: boolean) => void;
+  showDontShowAgain?: boolean;
 }
 
-export function Tutorial({ visible, onClose, language }: TutorialProps) {
+export function Tutorial({ visible, onClose, language, onDontShowAgain, showDontShowAgain = true }: TutorialProps) {
   const { width: screenWidth } = useWindowDimensions();
   const [step, setStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const slideAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -259,10 +308,17 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
     });
   };
 
+  const handleClose = () => {
+    if (dontShowAgain && onDontShowAgain) {
+      onDontShowAgain(true);
+    }
+    onClose();
+  };
+
   const handleNext = () => {
     if (isAnimating) return;
     if (isLast) {
-      onClose();
+      handleClose();
     } else {
       animateTransition(step + 1, 'next');
     }
@@ -278,48 +334,48 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
   if (!visible || !current) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.card, { width: Math.min(380, screenWidth - 48) }]}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+      <View style={tutStyles.overlay}>
+        <View style={[tutStyles.card, { width: Math.min(380, screenWidth - 48) }]}>
           {/* Progress dots */}
-          <View style={styles.progressDots}>
+          <View style={tutStyles.progressDots}>
             {steps.map((_, i) => (
               <View
                 key={i}
-                style={[styles.dot, i === step && styles.dotActive, i < step && styles.dotCompleted]}
+                style={[tutStyles.dot, i === step && tutStyles.dotActive, i < step && tutStyles.dotCompleted]}
               />
             ))}
           </View>
 
-          <Animated.View style={[styles.stepContent, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
-            <Text style={styles.title}>{current.title}</Text>
-            <View style={styles.illustrationContainer}>
+          <Animated.View style={[tutStyles.stepContent, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
+            <Text style={tutStyles.title}>{current.title}</Text>
+            <View style={tutStyles.illustrationContainer}>
               <Illustration type={current.illustration} language={language} />
             </View>
-            <Text style={styles.body}>{current.body}</Text>
+            <Text style={tutStyles.body}>{current.body}</Text>
           </Animated.View>
 
-          <View style={[styles.buttons, language === 'he' && styles.buttonsRTL]}>
+          <View style={[tutStyles.buttons, language === 'he' && tutStyles.buttonsRTL]}>
             <Pressable
-              style={[styles.btn, styles.btnSecondary, isFirst && styles.btnHidden]}
+              style={[tutStyles.btn, tutStyles.btnSecondary, isFirst && tutStyles.btnHidden]}
               onPress={handlePrev}
               disabled={isFirst || isAnimating}
               accessibilityRole="button"
               accessibilityLabel={language === 'he' ? 'הקודם' : 'Previous'}
             >
-              <Text style={styles.btnSecondaryText}>
+              <Text style={tutStyles.btnSecondaryText}>
                 {language === 'he' ? 'הקודם' : 'Back'}
               </Text>
             </Pressable>
 
             <Pressable
-              style={[styles.btn, styles.btnPrimary]}
+              style={[tutStyles.btn, tutStyles.btnPrimary]}
               onPress={handleNext}
               disabled={isAnimating}
               accessibilityRole="button"
               accessibilityLabel={isLast ? (language === 'he' ? 'סיום' : 'Done') : (language === 'he' ? 'הבא' : 'Next')}
             >
-              <Text style={styles.btnPrimaryText}>
+              <Text style={tutStyles.btnPrimaryText}>
                 {isLast
                   ? (language === 'he' ? 'בואו נשחק!' : "Let's Play!")
                   : (language === 'he' ? 'הבא' : 'Next')}
@@ -327,14 +383,33 @@ export function Tutorial({ visible, onClose, language }: TutorialProps) {
             </Pressable>
           </View>
 
-          <Pressable
-            style={styles.skipBtn}
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel={language === 'he' ? 'דלג' : 'Skip tutorial'}
-          >
-            <Text style={styles.skipText}>{language === 'he' ? 'דלג' : 'Skip'}</Text>
-          </Pressable>
+          {/* Don't show again + Skip */}
+          <View style={tutStyles.bottomRow}>
+            {showDontShowAgain && (
+              <View style={tutStyles.dontShowRow}>
+                <Switch
+                  value={dontShowAgain}
+                  onValueChange={setDontShowAgain}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor="#ffffff"
+                  style={{ transform: [{ scale: 0.8 }] }}
+                  accessibilityLabel={language === 'he' ? 'אל תציג שוב' : "Don't show again"}
+                />
+                <Text style={tutStyles.dontShowText}>
+                  {language === 'he' ? 'אל תציג שוב' : "Don't show again"}
+                </Text>
+              </View>
+            )}
+
+            <Pressable
+              style={tutStyles.skipBtn}
+              onPress={handleClose}
+              accessibilityRole="button"
+              accessibilityLabel={language === 'he' ? 'דלג' : 'Skip tutorial'}
+            >
+              <Text style={tutStyles.skipText}>{language === 'he' ? 'דלג' : 'Skip'}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
@@ -357,9 +432,9 @@ const miniStyles = StyleSheet.create({
     elevation: 2,
   },
   cardHighlight: {
-    borderColor: tutorialColors.gold,
+    borderColor: colors.gold,
     borderWidth: 2,
-    shadowColor: tutorialColors.gold,
+    shadowColor: colors.gold,
     shadowOpacity: 0.5,
     shadowRadius: 6,
     elevation: 4,
@@ -369,20 +444,20 @@ const miniStyles = StyleSheet.create({
   },
   suit: {},
   faceDown: {
-    backgroundColor: tutorialColors.secondary,
+    backgroundColor: colors.secondary,
     borderRadius: 5,
     borderWidth: 1,
-    borderColor: tutorialColors.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   faceDownStar: {
     fontSize: 14,
-    color: tutorialColors.mutedForeground,
+    color: colors.mutedForeground,
   },
   faceDownCount: {
     fontSize: 10,
-    color: tutorialColors.gold,
+    color: colors.gold,
     fontWeight: 'bold',
     position: 'absolute',
     bottom: 2,
@@ -391,13 +466,13 @@ const miniStyles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: `${tutorialColors.mutedForeground}66`,
+    borderColor: `${colors.mutedForeground}66`,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyLabel: {
     fontSize: 10,
-    color: tutorialColors.mutedForeground,
+    color: colors.mutedForeground,
   },
   illustrationRow: {
     flexDirection: 'row',
@@ -411,18 +486,23 @@ const miniStyles = StyleSheet.create({
   },
   arrow: {
     fontSize: 20,
-    color: tutorialColors.gold,
+    color: colors.gold,
+    fontWeight: 'bold',
+  },
+  dragArrow: {
+    fontSize: 20,
+    color: colors.gold,
     fontWeight: 'bold',
   },
   vs: {
     fontSize: 16,
-    color: tutorialColors.mutedForeground,
+    color: colors.mutedForeground,
     fontWeight: 'bold',
     marginHorizontal: 8,
   },
   hint: {
     fontSize: 11,
-    color: tutorialColors.mutedForeground,
+    color: colors.mutedForeground,
     fontStyle: 'italic',
     textAlign: 'center',
   },
@@ -437,27 +517,27 @@ const miniStyles = StyleSheet.create({
     left: 0,
   },
   ruleBox: {
-    backgroundColor: tutorialColors.secondary,
+    backgroundColor: colors.secondary,
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: tutorialColors.border,
+    borderColor: colors.border,
   },
   ruleIcon: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: tutorialColors.gold,
+    color: colors.gold,
   },
   ruleLabel: {
     fontSize: 11,
-    color: tutorialColors.mutedForeground,
+    color: colors.mutedForeground,
     marginTop: 2,
   },
 });
 
-const styles = StyleSheet.create({
+const tutStyles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.75)',
@@ -466,13 +546,13 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   card: {
-    backgroundColor: tutorialColors.background,
+    backgroundColor: colors.background,
     borderRadius: 20,
     padding: 28,
     maxWidth: 380,
     borderWidth: 2,
-    borderColor: tutorialColors.gold,
-    shadowColor: tutorialColors.gold,
+    borderColor: colors.gold,
+    shadowColor: colors.gold,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -489,15 +569,15 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: tutorialColors.border,
+    backgroundColor: colors.border,
   },
   dotActive: {
-    backgroundColor: tutorialColors.gold,
+    backgroundColor: colors.gold,
     width: 24,
     borderRadius: 4,
   },
   dotCompleted: {
-    backgroundColor: tutorialColors.primary,
+    backgroundColor: colors.primary,
   },
   stepContent: {
     alignItems: 'center',
@@ -506,23 +586,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: tutorialColors.gold,
+    color: colors.gold,
     marginBottom: 16,
     textAlign: 'center',
   },
   illustrationContainer: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: `${tutorialColors.secondary}88`,
+    backgroundColor: `${colors.secondary}88`,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: tutorialColors.border,
+    borderColor: colors.border,
     minWidth: 220,
     alignItems: 'center',
   },
   body: {
     fontSize: 16,
-    color: tutorialColors.foreground,
+    color: colors.foreground,
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
@@ -547,29 +627,44 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   } as any,
   btnPrimary: {
-    backgroundColor: tutorialColors.gold,
+    backgroundColor: colors.gold,
   },
   btnPrimaryText: {
-    color: tutorialColors.background,
+    color: colors.background,
     fontWeight: 'bold',
     fontSize: 16,
   },
   btnSecondary: {
-    backgroundColor: tutorialColors.secondary,
+    backgroundColor: colors.secondary,
     borderWidth: 1,
-    borderColor: tutorialColors.border,
+    borderColor: colors.border,
   },
   btnSecondaryText: {
-    color: tutorialColors.foreground,
+    color: colors.foreground,
     fontWeight: '600',
     fontSize: 16,
   },
-  skipBtn: {
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
     marginTop: 16,
+  },
+  dontShowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  dontShowText: {
+    color: colors.mutedForeground,
+    fontSize: 12,
+  },
+  skipBtn: {
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   } as any,
   skipText: {
-    color: tutorialColors.mutedForeground,
+    color: colors.mutedForeground,
     fontSize: 14,
   },
 });

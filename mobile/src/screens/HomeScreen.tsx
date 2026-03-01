@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MIN_PLAYERS, MAX_PLAYERS } from '../constants';
 import { colors } from '../theme/colors';
-import { loadPlayerPreferences, loadLanguagePreference, saveLanguagePreference, loadAIDifficulty, saveAIDifficulty, AIDifficulty, isFirstLaunch, markFirstLaunchDone } from '../utils/storage';
+import { loadPlayerPreferences, loadLanguagePreference, saveLanguagePreference, loadAIDifficulty, saveAIDifficulty, AIDifficulty, isFirstLaunch, markFirstLaunchDone, loadTutorialDismissed, saveTutorialDismissed } from '../utils/storage';
 import { loadSavedGame, clearSavedGame, SavedGame } from '../utils/gameSave';
 import { Tutorial } from '../components/Tutorial';
 import { RootStackParamList } from '../navigation/types';
@@ -101,7 +101,11 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     loadAIDifficulty().then(d => setAiDifficulty(d));
     isFirstLaunch().then(first => {
       if (first) {
-        setTutorialVisible(true);
+        loadTutorialDismissed().then(dismissed => {
+          if (!dismissed) {
+            setTutorialVisible(true);
+          }
+        });
         markFirstLaunchDone();
       }
     });
@@ -292,13 +296,18 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
             {/* Timed Mode Toggle */}
             <View style={styles.timedModeRow}>
-              <Text style={styles.sectionTitle}>{t.timedMode}</Text>
+              <View>
+                <Text style={styles.sectionTitle}>{t.timedMode}</Text>
+                <Text style={styles.timedModeDesc}>
+                  {language === 'he' ? '30 שניות לכל תור' : '30 seconds per turn'}
+                </Text>
+              </View>
               <Switch
                 value={timedMode}
                 onValueChange={setTimedMode}
-                trackColor={{ false: '#b0b0b0', true: '#4cd964' }}
+                trackColor={{ false: colors.border, true: colors.success }}
                 thumbColor="#ffffff"
-                ios_backgroundColor="#b0b0b0"
+                ios_backgroundColor={colors.border}
                 accessibilityLabel={t.timedMode}
               />
             </View>
@@ -347,7 +356,12 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       </SafeAreaView>
 
       {/* Tutorial overlay */}
-      <Tutorial visible={tutorialVisible} onClose={() => setTutorialVisible(false)} language={language} />
+      <Tutorial
+        visible={tutorialVisible}
+        onClose={() => setTutorialVisible(false)}
+        language={language}
+        onDontShowAgain={(dismissed) => saveTutorialDismissed(dismissed)}
+      />
     </View>
   );
 }
@@ -511,6 +525,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 16,
     width: '100%',
+  },
+  timedModeDesc: {
+    fontSize: 12,
+    color: colors.mutedForeground,
+    marginTop: -12,
+    marginBottom: 4,
   },
   resumeButton: {
     width: '100%',

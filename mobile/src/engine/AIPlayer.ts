@@ -277,6 +277,28 @@ function evaluatePosition(state: GameState, playerIndex: number): number {
     }
   }
 
+  // Opponent awareness: urgency increases when an opponent is close to winning
+  let smallestOpponentPile = Infinity;
+  for (let i = 0; i < state.players.length; i++) {
+    if (i === playerIndex) continue;
+    const opPileSize = getPersonalPileSize(state.players[i]);
+    if (opPileSize < smallestOpponentPile) {
+      smallestOpponentPile = opPileSize;
+    }
+  }
+  if (smallestOpponentPile <= 5) {
+    score -= (6 - smallestOpponentPile) * 8;
+    // Bonus for having playable personal pile card when under pressure
+    if (pileTop) {
+      for (let i = 0; i < NUM_CENTER_PILES; i++) {
+        if (canPlaceOnPile(state.centerPiles[i], pileTop)) {
+          score += 10;
+          break;
+        }
+      }
+    }
+  }
+
   return score;
 }
 
@@ -417,9 +439,11 @@ function findMoveHard(state: GameState): AIMove | null {
 export function executeAIMove(state: GameState, move: AIMove): GameState {
   switch (move.type) {
     case 'center':
-      return playToCenter(state, move.source!, move.sourceIndex!, move.targetIndex!);
+      if (move.source == null || move.sourceIndex == null || move.targetIndex == null) return state;
+      return playToCenter(state, move.source, move.sourceIndex, move.targetIndex);
     case 'storage':
-      return playToStorage(state, move.source!, move.sourceIndex!, move.targetIndex!);
+      if (move.source == null || move.sourceIndex == null || move.targetIndex == null) return state;
+      return playToStorage(state, move.source, move.sourceIndex, move.targetIndex);
     case 'endTurn':
       return endTurn(state);
     default:

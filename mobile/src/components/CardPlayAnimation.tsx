@@ -12,6 +12,8 @@ interface CardPlayAnimationProps {
   onComplete: () => void;
   sourceX?: number;
   sourceY?: number;
+  destX?: number;
+  destY?: number;
 }
 
 function getDefaultSource(playerPosition: string, screenWidth: number, screenHeight: number) {
@@ -34,7 +36,7 @@ function getDefaultSource(playerPosition: string, screenWidth: number, screenHei
   }
 }
 
-export function CardPlayAnimation({ card, playerPosition, onComplete, sourceX, sourceY }: CardPlayAnimationProps) {
+export function CardPlayAnimation({ card, playerPosition, onComplete, sourceX, sourceY, destX, destY }: CardPlayAnimationProps) {
   const windowDims = useWindowDimensions();
   const reduceMotion = isReduceMotionEnabled();
   const posX = useRef(new Animated.Value(0)).current;
@@ -52,7 +54,9 @@ export function CardPlayAnimation({ card, playerPosition, onComplete, sourceX, s
     const screenHeight = windowDims.height;
     const cardW = CARD_DIMENSIONS.WIDTH;
     const cardH = CARD_DIMENSIONS.HEIGHT;
-    const dest = { x: screenWidth / 2 - cardW / 2, y: screenHeight / 2 - cardH / 2 };
+    const dest = (destX != null && destY != null)
+      ? { x: destX, y: destY }
+      : { x: screenWidth / 2 - cardW / 2, y: screenHeight / 2 - cardH / 2 };
     const source = (sourceX != null && sourceY != null)
       ? { x: sourceX, y: sourceY }
       : getDefaultSource(playerPosition, screenWidth, screenHeight);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Modal, TouchableOpacity, Text, StyleSheet, Share, Platform } from 'react-native';
+import { Modal, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Player } from '../models';
 import { colors } from '../theme/colors';
 
@@ -7,20 +7,14 @@ type Language = 'he' | 'en';
 
 const translations = {
   he: {
-    gameOver: 'המשחק נגמר!',
     youWon: 'ניצחת!',
     wins: 'ניצח!',
-    newGame: 'משחק חדש',
     playAgain: 'שחק שוב',
-    share: 'שתף',
   },
   en: {
-    gameOver: 'Game Over!',
     youWon: 'You Won!',
     wins: 'wins!',
-    newGame: 'New Game',
     playAgain: 'Play Again',
-    share: 'Share',
   },
 };
 
@@ -28,25 +22,19 @@ interface GameOverModalProps {
   visible: boolean;
   winner: Player | null;
   language: Language;
+  turnsPlayed?: number;
+  players?: Array<{ name: string; cardsRemaining: number }>;
   onClose: () => void;
+  onRematch?: () => void;
 }
 
 export function GameOverModal({ visible, winner, language, onClose }: GameOverModalProps) {
   const t = translations[language];
   const humanWon = winner && !winner.isAI;
 
-  const handleShare = async () => {
-    if (!winner) return;
-    const message = language === 'he'
-      ? `21 Card Game\n${winner.name} ${t.wins}`
-      : `21 Card Game\n${winner.name} ${t.wins}`;
-
-    try {
-      await Share.share({ message });
-    } catch {
-      // Share not available or cancelled
-    }
-  };
+  const title = humanWon
+    ? `🎉 ${t.youWon} 🎉`
+    : `${winner?.avatar ?? ''} ${winner?.name ?? ''} ${t.wins}`;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -56,48 +44,23 @@ export function GameOverModal({ visible, winner, language, onClose }: GameOverMo
           activeOpacity={1}
           onPress={(e) => e.stopPropagation()}
           accessibilityRole="alert"
-          accessibilityLabel={
-            humanWon
-              ? (language === 'he' ? 'ניצחת!' : 'You Won!')
-              : `${winner?.name} ${t.wins}`
-          }
+          accessibilityLabel={title}
         >
-          {/* Title */}
           <Text
             style={humanWon ? styles.youWonTitle : styles.modalTitle}
             accessibilityRole="header"
           >
-            {humanWon ? `🎉 ${t.youWon} 🎉` : t.gameOver}
+            {title}
           </Text>
 
-          {!humanWon && winner && (
-            <Text style={styles.winnerText} accessibilityRole="text">
-              {winner.avatar} {winner.name} {t.wins}
-            </Text>
-          )}
-
-          {/* Actions */}
-          <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={humanWon ? styles.playAgainButton : styles.newGameButton}
-              onPress={onClose}
-              accessibilityRole="button"
-              accessibilityLabel={humanWon ? t.playAgain : t.newGame}
-            >
-              <Text style={styles.buttonText}>{humanWon ? t.playAgain : t.newGame}</Text>
-            </TouchableOpacity>
-
-            {Platform.OS !== 'web' && (
-              <TouchableOpacity
-                style={styles.shareButton}
-                onPress={handleShare}
-                accessibilityRole="button"
-                accessibilityLabel={t.share}
-              >
-                <Text style={styles.shareButtonText}>{t.share}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <TouchableOpacity
+            style={humanWon ? styles.playAgainButton : styles.playAgainButton}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={t.playAgain}
+          >
+            <Text style={styles.buttonText}>{t.playAgain}</Text>
+          </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
     </Modal>
@@ -127,72 +90,35 @@ const styles = StyleSheet.create({
     maxWidth: 360,
   },
   modalContentWin: {
-    borderColor: '#4CAF50',
-    shadowColor: '#4CAF50',
+    borderColor: colors.success,
+    shadowColor: colors.success,
   },
   modalTitle: {
     fontSize: 28,
     fontWeight: 'bold',
     color: colors.gold,
-    marginBottom: 8,
+    marginBottom: 20,
     textAlign: 'center',
   },
   youWonTitle: {
     fontSize: 30,
     fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: 12,
+    color: colors.success,
+    marginBottom: 20,
     textAlign: 'center',
   },
-  winnerText: {
-    fontSize: 20,
-    color: colors.foreground,
-    marginBottom: 16,
-    fontWeight: '600',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-  },
-  newGameButton: {
-    backgroundColor: colors.gold,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.goldLight,
-    shadowColor: colors.gold,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-  },
   playAgainButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.success,
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#66BB6A',
-    shadowColor: '#4CAF50',
+    borderColor: colors.success,
+    shadowColor: colors.success,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 8,
-  },
-  shareButton: {
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  shareButtonText: {
-    color: colors.foreground,
-    fontSize: 16,
-    fontWeight: '600',
   },
   buttonText: {
     color: colors.background,

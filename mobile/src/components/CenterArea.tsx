@@ -56,6 +56,7 @@ interface CenterAreaProps {
   draggingCard?: Card | null;
   invalidPileIndex?: number | null;
   invalidPileKey?: number;
+  turnTimeRemaining?: number | null;
 }
 
 export function CenterArea({
@@ -72,6 +73,7 @@ export function CenterArea({
   draggingCard = null,
   invalidPileIndex = null,
   invalidPileKey = 0,
+  turnTimeRemaining = null,
 }: CenterAreaProps) {
   const [language, setLanguage] = useState<Language>('he');
 
@@ -172,6 +174,14 @@ export function CenterArea({
         {language === 'he' ? `${t.turn} ${currentPlayerName}` : `${currentPlayerName}${t.turn}`}
         {cardsPlayedThisTurn > 0 && ` • ${t.played}: ${cardsPlayedThisTurn}`}
       </Text>
+
+      {turnTimeRemaining != null && (
+        <View style={[styles.timerContainer, turnTimeRemaining <= 5 && styles.timerContainerUrgent]}>
+          <Text style={[styles.timerText, turnTimeRemaining <= 5 && styles.timerTextUrgent]}>
+            {turnTimeRemaining}s
+          </Text>
+        </View>
+      )}
 
       {isAITurn && (
         <Text style={styles.aiLabel}>{t.aiPlaying}</Text>
@@ -298,11 +308,34 @@ const createStyles = (isSmallScreen: boolean, isLargeScreen: boolean) => StyleSh
     fontSize: 12,
     fontWeight: 'bold',
     color: colors.accent,
-    marginBottom: 8,
+    marginBottom: 4,
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
     textAlign: 'center',
+  },
+  timerContainer: {
+    backgroundColor: colors.secondary,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.gold,
+    alignSelf: 'center',
+    marginBottom: 6,
+  },
+  timerContainerUrgent: {
+    backgroundColor: colors.destructive,
+    borderColor: colors.destructive,
+  },
+  timerText: {
+    color: colors.gold,
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  timerTextUrgent: {
+    color: colors.primaryForeground,
   },
   aiLabel: {
     fontSize: 11,
