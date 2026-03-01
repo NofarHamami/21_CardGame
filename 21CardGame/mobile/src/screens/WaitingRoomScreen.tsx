@@ -97,10 +97,13 @@ type PrivateStep = 'choose' | 'hosting' | 'joining';
 const WAIT_TIMEOUT_MS = 90 * 1000;
 
 export function WaitingRoomScreen({ navigation, route }: WaitingRoomScreenProps) {
-  const { gameMode, numPlayers, playerName, playerAvatar } = route.params;
+  const { gameMode, numPlayers, playerName, playerAvatar, privateAction, joinCode: initialJoinCode } = route.params;
   const isPrivate = gameMode === 'private';
 
-  const [privateStep, setPrivateStep] = useState<PrivateStep>('choose');
+  const initialStep: PrivateStep = privateAction === 'create' ? 'hosting'
+    : privateAction === 'join' ? 'joining'
+    : 'choose';
+  const [privateStep, setPrivateStep] = useState<PrivateStep>(initialStep);
   const [remotePlayers, setRemotePlayers] = useState<PlayerInfo[]>([]);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [showTimeoutMessage, setShowTimeoutMessage] = useState(false);
@@ -202,11 +205,24 @@ export function WaitingRoomScreen({ navigation, route }: WaitingRoomScreenProps)
     }
   }, [handleEvent]);
 
-  // For random mode, connect immediately
   useEffect(() => {
     if (!isPrivate) {
       connectAndDo((service) => {
         service.joinMatchmaking(playerName, playerAvatar, numPlayers);
+      });
+    } else if (privateAction === 'create') {
+      connectAndDo((service) => {
+        service.createRoom(playerName, playerAvatar, numPlayers);
+      });
+    } else if (privateAction === 'join') {
+      connectAndDo((service) => {
+        if (initialJoinCode && initialJoinCode.length >= 4) {
+          const code = initialJoinCode.toUpperCase();
+          setJoinCode(code);
+          service.joinRoom(code, playerName, playerAvatar);
+          setRoomCode(code);
+          setIsHost(false);
+        }
       });
     }
 

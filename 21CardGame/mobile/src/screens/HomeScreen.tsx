@@ -9,6 +9,7 @@ import {
   Animated,
   Image,
   Switch,
+  TextInput,
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,20 +30,23 @@ interface HomeScreenProps {
 }
 
 type Language = 'he' | 'en';
+type Step = 'selectMode' | 'configure';
+type PrivateAction = 'create' | 'join' | null;
 
 const translations = {
   he: {
     subtitle: 'משחק קלפים',
     tagline: 'משחק קלפים 21',
-    gameModeTitle: 'בחירת משחק',
+    gameModeTitle: 'בחירת סוג משחק',
     practiceMode: 'משחק אימון',
     practiceSubtext: 'נגד מחשב',
-    privateMode: 'משחק פרטי',
+    privateMode: 'חדר פרטי',
     privateSubtext: 'מול חברים',
     randomMode: 'משחק רנדומלי',
-    randomSubtext: 'משתתפים קיימים',
+    randomSubtext: 'שיבוץ אוטומטי',
     playersTitle: 'מספר משתתפים',
     startButton: 'התחל משחק',
+    findGame: 'מצא משחק',
     resumeButton: 'המשך משחק',
     stats: 'סטטיסטיקות',
     howToPlay: 'איך משחקים?',
@@ -53,19 +57,28 @@ const translations = {
     timedMode: 'מצב זמן',
     timedOn: 'פעיל',
     timedOff: 'כבוי',
+    back: 'חזור',
+    createRoom: 'צור חדר',
+    createRoomDesc: 'בחר מספר משתתפים וצור קוד',
+    joinRoom: 'הצטרף לחדר',
+    joinRoomDesc: 'הכנס קוד שקיבלת מחבר',
+    enterCode: 'הכנס קוד חדר',
+    or: 'או',
+    joinButton: 'הצטרף',
   },
   en: {
     subtitle: 'Card Game',
     tagline: '21 Card Game',
-    gameModeTitle: 'Game Mode',
-    practiceMode: 'Practice',
+    gameModeTitle: 'Select Game Type',
+    practiceMode: 'Training',
     practiceSubtext: 'vs Computer',
-    privateMode: 'Private',
+    privateMode: 'Private Room',
     privateSubtext: 'with Friends',
     randomMode: 'Random',
-    randomSubtext: 'Existing Players',
+    randomSubtext: 'Auto Matchmaking',
     playersTitle: 'Number of Players',
     startButton: 'Start Game',
+    findGame: 'Find Game',
     resumeButton: 'Resume Game',
     stats: 'Statistics',
     howToPlay: 'How to Play',
@@ -76,19 +89,30 @@ const translations = {
     timedMode: 'Timed Mode',
     timedOn: 'On',
     timedOff: 'Off',
+    back: 'Back',
+    createRoom: 'Create Room',
+    createRoomDesc: 'Select participants and generate a code',
+    joinRoom: 'Join Room',
+    joinRoomDesc: 'Enter a code you received from a friend',
+    enterCode: 'Enter room code',
+    or: 'or',
+    joinButton: 'Join',
   },
 };
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const { width: screenWidth } = useWindowDimensions();
+  const [step, setStep] = useState<Step>('selectMode');
+  const [selectedGameMode, setSelectedGameMode] = useState<GameMode | null>(null);
+  const [privateAction, setPrivateAction] = useState<PrivateAction>(null);
   const [selectedPlayers, setSelectedPlayers] = useState(2);
-  const [selectedGameMode, setSelectedGameMode] = useState<GameMode>('practice');
   const [savedPreferences, setSavedPreferences] = useState<{ name: string; avatar: string } | null>(null);
   const [language, setLanguage] = useState<Language>('he');
   const [savedGame, setSavedGame] = useState<SavedGame | null>(null);
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
   const [timedMode, setTimedMode] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
 
@@ -116,7 +140,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     ]).start();
   }, []);
 
-  // Refresh saved game when screen gets focus
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       loadSavedGame().then(saved => setSavedGame(saved));
@@ -139,6 +162,21 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   const handleGameModeSelect = (mode: GameMode) => {
     setSelectedGameMode(mode);
+    setPrivateAction(null);
+    setJoinCode('');
+    setStep('configure');
+  };
+
+  const handleBack = () => {
+    if (selectedGameMode === 'private' && privateAction) {
+      setPrivateAction(null);
+      setJoinCode('');
+    } else {
+      setStep('selectMode');
+      setSelectedGameMode(null);
+      setPrivateAction(null);
+      setJoinCode('');
+    }
   };
 
   const handleResumeGame = () => {
@@ -150,41 +188,361 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     });
   };
 
-  const handleStartGame = () => {
-    // Clear any saved game when starting new
+  const navigateToGame = (mode: GameMode) => {
     clearSavedGame();
     setSavedGame(null);
 
     if (savedPreferences) {
-      if (selectedGameMode === 'private' || selectedGameMode === 'random') {
-        navigation.navigate('WaitingRoom', {
-          gameMode: selectedGameMode,
-          numPlayers: selectedPlayers,
-          playerName: savedPreferences.name,
-          playerAvatar: savedPreferences.avatar,
-        });
-      } else {
+      if (mode === 'practice') {
         navigation.navigate('Game', {
           numPlayers: selectedPlayers,
           playerName: savedPreferences.name,
           playerAvatar: savedPreferences.avatar,
-          gameMode: selectedGameMode,
+          gameMode: mode,
           aiDifficulty,
           timedMode,
+        });
+      } else if (mode === 'random') {
+        navigation.navigate('WaitingRoom', {
+          gameMode: 'random',
+          numPlayers: selectedPlayers,
+          playerName: savedPreferences.name,
+          playerAvatar: savedPreferences.avatar,
+        });
+      } else if (mode === 'private' && privateAction === 'create') {
+        navigation.navigate('WaitingRoom', {
+          gameMode: 'private',
+          numPlayers: selectedPlayers,
+          playerName: savedPreferences.name,
+          playerAvatar: savedPreferences.avatar,
+          privateAction: 'create',
+        });
+      } else if (mode === 'private' && privateAction === 'join') {
+        navigation.navigate('WaitingRoom', {
+          gameMode: 'private',
+          numPlayers: 2,
+          playerName: savedPreferences.name,
+          playerAvatar: savedPreferences.avatar,
+          privateAction: 'join',
+          joinCode: joinCode.toUpperCase(),
         });
       }
     } else {
       navigation.navigate('PlayerSetup', {
-        gameMode: selectedGameMode,
+        gameMode: mode,
         numPlayers: selectedPlayers,
       });
     }
   };
 
+  const handleStartGame = () => {
+    if (!selectedGameMode) return;
+    navigateToGame(selectedGameMode);
+  };
+
+  const gameModes: { mode: GameMode; emoji: string }[] = [
+    { mode: 'practice', emoji: '🎯' },
+    { mode: 'private', emoji: '🔒' },
+    { mode: 'random', emoji: '🎲' },
+  ];
+
+  const getModeTitle = (mode: GameMode) =>
+    mode === 'practice' ? t.practiceMode : mode === 'private' ? t.privateMode : t.randomMode;
+
+  const getModeSubtext = (mode: GameMode) =>
+    mode === 'practice' ? t.practiceSubtext : mode === 'private' ? t.privateSubtext : t.randomSubtext;
+
+  const renderPlayerSelector = () => (
+    <>
+      <Text style={styles.sectionTitle}>{t.playersTitle}</Text>
+      <View style={styles.playerButtons}>
+        {Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }).map((_, i) => {
+          const numPlayers = MIN_PLAYERS + i;
+          const isSelected = selectedPlayers === numPlayers;
+          return (
+            <TouchableOpacity
+              key={numPlayers}
+              style={[styles.playerButton, isSelected && styles.playerButtonSelected]}
+              onPress={() => setSelectedPlayers(numPlayers)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${numPlayers} ${language === 'he' ? 'שחקנים' : 'players'}`}
+              accessibilityState={{ selected: isSelected }}
+            >
+              <Text style={[styles.playerButtonText, isSelected && styles.playerButtonTextSelected]}>
+                {numPlayers}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </>
+  );
+
+  const renderActionButton = (label: string, onPress: () => void, disabled?: boolean) => (
+    <TouchableOpacity
+      style={[styles.actionButton, { maxWidth: screenWidth - 100 }, disabled && styles.actionButtonDisabled]}
+      onPress={onPress}
+      activeOpacity={0.9}
+      disabled={disabled}
+    >
+      <LinearGradient
+        colors={[colors.primary, colors.accent]}
+        style={styles.actionButtonGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <Text style={styles.actionButtonText}>{label}</Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+
+  // ─── STEP 1: Select game type ───
+  const renderSelectMode = () => (
+    <>
+      <View style={styles.logoContainer}>
+        <Image
+          source={language === 'en'
+            ? require('../../assets/logo-en.png')
+            : require('../../assets/logo-main.png')}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel={language === 'en' ? '21 Card Game logo' : 'לוגו משחק קלפים 21'}
+        />
+      </View>
+
+      <Text style={styles.sectionTitle}>{t.gameModeTitle}</Text>
+
+      <View style={styles.modeCardsContainer}>
+        {gameModes.map(({ mode, emoji }) => (
+          <TouchableOpacity
+            key={mode}
+            style={styles.modeCard}
+            onPress={() => handleGameModeSelect(mode)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={getModeTitle(mode)}
+          >
+            <Text style={styles.modeCardEmoji}>{emoji}</Text>
+            <View style={styles.modeCardTextContainer}>
+              <Text style={styles.modeCardTitle}>{getModeTitle(mode)}</Text>
+              <Text style={styles.modeCardSubtext}>{getModeSubtext(mode)}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {savedGame && (
+        <TouchableOpacity
+          style={[styles.resumeButton, { maxWidth: screenWidth - 100 }]}
+          onPress={handleResumeGame}
+          activeOpacity={0.9}
+        >
+          <Text style={styles.resumeButtonText}>{t.resumeButton}</Text>
+        </TouchableOpacity>
+      )}
+
+      <View style={styles.bottomLinks}>
+        <TouchableOpacity
+          style={styles.linkButton}
+          onPress={() => setTutorialVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t.howToPlay}
+        >
+          <Text style={styles.linkText}>{t.howToPlay}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.linkButton}
+          onPress={() => navigation.navigate('Stats' as never)}
+          accessibilityRole="button"
+          accessibilityLabel={t.stats}
+        >
+          <Text style={styles.linkText}>{t.stats}</Text>
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+
+  // ─── STEP 2: Configure (Training) ───
+  const renderPracticeConfigure = () => (
+    <>
+      {renderPlayerSelector()}
+
+      <Text style={styles.sectionTitle}>{t.difficultyTitle}</Text>
+      <View style={[styles.playerButtons, language === 'he' && { flexDirection: 'row-reverse' }]}>
+        {(['easy', 'medium', 'hard'] as AIDifficulty[]).map((d) => {
+          const isSelected = aiDifficulty === d;
+          const label = d === 'easy' ? t.difficultyEasy : d === 'medium' ? t.difficultyMedium : t.difficultyHard;
+          return (
+            <TouchableOpacity
+              key={d}
+              style={[styles.difficultyButton, isSelected && styles.difficultyButtonSelected]}
+              onPress={() => handleDifficultySelect(d)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+              accessibilityState={{ selected: isSelected }}
+            >
+              <Text style={[styles.difficultyButtonText, isSelected && styles.difficultyButtonTextSelected]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View style={styles.timedModeRow}>
+        <View>
+          <Text style={styles.sectionTitle}>{t.timedMode}</Text>
+          <Text style={styles.timedModeDesc}>
+            {language === 'he' ? '30 שניות לכל תור' : '30 seconds per turn'}
+          </Text>
+        </View>
+        <Switch
+          value={timedMode}
+          onValueChange={setTimedMode}
+          trackColor={{ false: colors.border, true: colors.success }}
+          thumbColor="#ffffff"
+          ios_backgroundColor={colors.border}
+          accessibilityLabel={t.timedMode}
+        />
+      </View>
+
+      {renderActionButton(t.startButton, handleStartGame)}
+    </>
+  );
+
+  // ─── STEP 2: Configure (Random) ───
+  const renderRandomConfigure = () => (
+    <>
+      {renderPlayerSelector()}
+
+      <View style={styles.timedModeRow}>
+        <View>
+          <Text style={styles.sectionTitle}>{t.timedMode}</Text>
+          <Text style={styles.timedModeDesc}>
+            {language === 'he' ? '30 שניות לכל תור' : '30 seconds per turn'}
+          </Text>
+        </View>
+        <Switch
+          value={timedMode}
+          onValueChange={setTimedMode}
+          trackColor={{ false: colors.border, true: colors.success }}
+          thumbColor="#ffffff"
+          ios_backgroundColor={colors.border}
+          accessibilityLabel={t.timedMode}
+        />
+      </View>
+
+      {renderActionButton(t.findGame, handleStartGame)}
+    </>
+  );
+
+  // ─── STEP 2: Configure (Private - choose action) ───
+  const renderPrivateChoose = () => (
+    <>
+      <TouchableOpacity style={styles.privateChoiceCard} onPress={() => setPrivateAction('create')} activeOpacity={0.8}>
+        <Text style={styles.privateChoiceEmoji}>🏠</Text>
+        <View style={styles.privateChoiceTextContainer}>
+          <Text style={styles.privateChoiceTitle}>{t.createRoom}</Text>
+          <Text style={styles.privateChoiceDesc}>{t.createRoomDesc}</Text>
+        </View>
+      </TouchableOpacity>
+
+      <Text style={styles.orText}>— {t.or} —</Text>
+
+      <TouchableOpacity style={styles.privateChoiceCard} onPress={() => setPrivateAction('join')} activeOpacity={0.8}>
+        <Text style={styles.privateChoiceEmoji}>🔗</Text>
+        <View style={styles.privateChoiceTextContainer}>
+          <Text style={styles.privateChoiceTitle}>{t.joinRoom}</Text>
+          <Text style={styles.privateChoiceDesc}>{t.joinRoomDesc}</Text>
+        </View>
+      </TouchableOpacity>
+    </>
+  );
+
+  // ─── STEP 2: Configure (Private - Create Room) ───
+  const renderPrivateCreate = () => (
+    <>
+      {renderPlayerSelector()}
+      {renderActionButton(t.createRoom, handleStartGame)}
+    </>
+  );
+
+  // ─── STEP 2: Configure (Private - Join Room) ───
+  const renderPrivateJoin = () => (
+    <>
+      <Text style={styles.sectionTitle}>{t.enterCode}</Text>
+      <View style={styles.joinRow}>
+        <TextInput
+          style={styles.joinInput}
+          value={joinCode}
+          onChangeText={setJoinCode}
+          placeholder="ABC123"
+          placeholderTextColor={colors.mutedForeground}
+          autoCapitalize="characters"
+          maxLength={6}
+          autoFocus
+          accessibilityLabel={t.enterCode}
+        />
+      </View>
+      {renderActionButton(t.joinButton, handleStartGame, joinCode.length < 4)}
+    </>
+  );
+
+  // ─── STEP 2: Configure (Private - routing) ───
+  const renderPrivateConfigure = () => {
+    if (!privateAction) return renderPrivateChoose();
+    if (privateAction === 'create') return renderPrivateCreate();
+    return renderPrivateJoin();
+  };
+
+  const renderConfigureStep = () => {
+    const configTitle = privateAction === 'create'
+      ? t.createRoom
+      : privateAction === 'join'
+        ? t.joinRoom
+        : getModeTitle(selectedGameMode!);
+
+    return (
+      <>
+        <View style={styles.configHeader}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            accessibilityRole="button"
+            accessibilityLabel={t.back}
+          >
+            <Text style={styles.backButtonText}>
+              {language === 'he' ? '→' : '←'} {t.back}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.logoContainerSmall}>
+          <Image
+            source={language === 'en'
+              ? require('../../assets/logo-en.png')
+              : require('../../assets/logo-main.png')}
+            style={styles.logoSmall}
+            resizeMode="contain"
+            accessibilityLabel={language === 'en' ? '21 Card Game logo' : 'לוגו משחק קלפים 21'}
+          />
+        </View>
+
+        <Text style={styles.configTitle}>{configTitle}</Text>
+
+        {selectedGameMode === 'practice' && renderPracticeConfigure()}
+        {selectedGameMode === 'random' && renderRandomConfigure()}
+        {selectedGameMode === 'private' && renderPrivateConfigure()}
+      </>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        {/* Language toggle */}
         <TouchableOpacity
           style={styles.languageButton}
           onPress={toggleLanguage}
@@ -197,158 +555,11 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           <Animated.View
             style={[styles.contentWrapper, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
           >
-            {/* Logo */}
-            <View style={styles.logoContainer}>
-              <Image
-                source={language === 'en'
-                  ? require('../../assets/logo-en.png')
-                  : require('../../assets/logo-main.png')}
-                style={styles.logo}
-                resizeMode="contain"
-                accessibilityLabel={language === 'en' ? '21 Card Game logo' : 'לוגו משחק קלפים 21'}
-              />
-            </View>
-
-            {/* Game Mode */}
-            <Text style={styles.sectionTitle}>{t.gameModeTitle}</Text>
-            <View style={[styles.gameModeButtons, language === 'he' && styles.gameModeButtonsRTL]}>
-              {(language === 'he' ? ['random', 'private', 'practice'] as GameMode[] : ['practice', 'private', 'random'] as GameMode[]).map((mode) => (
-                  <TouchableOpacity
-                    key={mode}
-                    style={[
-                      styles.gameModeButton,
-                      selectedGameMode === mode && styles.gameModeButtonSelected,
-                    ]}
-                    onPress={() => handleGameModeSelect(mode)}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={mode === 'practice' ? t.practiceMode : mode === 'private' ? t.privateMode : t.randomMode}
-                    accessibilityState={{ selected: selectedGameMode === mode }}
-                  >
-                    <Text style={[styles.gameModeButtonText, selectedGameMode === mode && styles.gameModeButtonTextSelected]}>
-                      {mode === 'practice' ? t.practiceMode : mode === 'private' ? t.privateMode : t.randomMode}
-                    </Text>
-                    <Text style={[styles.gameModeSubtext, selectedGameMode === mode && styles.gameModeSubtextSelected]}>
-                      {mode === 'practice' ? t.practiceSubtext : mode === 'private' ? t.privateSubtext : t.randomSubtext}
-                    </Text>
-                  </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Number of Players */}
-            <Text style={styles.sectionTitle}>{t.playersTitle}</Text>
-            <View style={styles.playerButtons}>
-              {Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }).map((_, i) => {
-                const numPlayers = MIN_PLAYERS + i;
-                const isSelected = selectedPlayers === numPlayers;
-                return (
-                  <TouchableOpacity
-                    key={numPlayers}
-                    style={[styles.playerButton, isSelected && styles.playerButtonSelected]}
-                    onPress={() => setSelectedPlayers(numPlayers)}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${numPlayers} ${language === 'he' ? 'שחקנים' : 'players'}`}
-                    accessibilityState={{ selected: isSelected }}
-                  >
-                    <Text style={[styles.playerButtonText, isSelected && styles.playerButtonTextSelected]}>
-                      {numPlayers}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* AI Difficulty (practice mode only) */}
-            {selectedGameMode === 'practice' && (
-              <>
-                <Text style={styles.sectionTitle}>{t.difficultyTitle}</Text>
-                <View style={[styles.playerButtons, language === 'he' && { flexDirection: 'row-reverse' }]}>
-                  {(['easy', 'medium', 'hard'] as AIDifficulty[]).map((d) => {
-                    const isSelected = aiDifficulty === d;
-                    const label = d === 'easy' ? t.difficultyEasy : d === 'medium' ? t.difficultyMedium : t.difficultyHard;
-                    return (
-                      <TouchableOpacity
-                        key={d}
-                        style={[styles.difficultyButton, isSelected && styles.difficultyButtonSelected]}
-                        onPress={() => handleDifficultySelect(d)}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={label}
-                        accessibilityState={{ selected: isSelected }}
-                      >
-                        <Text style={[styles.difficultyButtonText, isSelected && styles.difficultyButtonTextSelected]}>
-                          {label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </>
-            )}
-
-            {/* Timed Mode Toggle */}
-            <View style={styles.timedModeRow}>
-              <View>
-                <Text style={styles.sectionTitle}>{t.timedMode}</Text>
-                <Text style={styles.timedModeDesc}>
-                  {language === 'he' ? '30 שניות לכל תור' : '30 seconds per turn'}
-                </Text>
-              </View>
-              <Switch
-                value={timedMode}
-                onValueChange={setTimedMode}
-                trackColor={{ false: colors.border, true: colors.success }}
-                thumbColor="#ffffff"
-                ios_backgroundColor={colors.border}
-                accessibilityLabel={t.timedMode}
-              />
-            </View>
-
-            {/* Resume Game Button */}
-            {savedGame && (
-              <TouchableOpacity style={[styles.resumeButton, { maxWidth: screenWidth - 100 }]} onPress={handleResumeGame} activeOpacity={0.9}>
-                <Text style={styles.resumeButtonText}>{t.resumeButton}</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Start Game Button */}
-            <TouchableOpacity style={[styles.startButton, { maxWidth: screenWidth - 100 }]} onPress={handleStartGame} activeOpacity={0.9}>
-              <LinearGradient
-                colors={[colors.primary, colors.accent]}
-                style={styles.startButtonGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.startButtonText}>{t.startButton}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {/* Bottom links */}
-            <View style={styles.bottomLinks}>
-              <TouchableOpacity
-                style={styles.linkButton}
-                onPress={() => setTutorialVisible(true)}
-                accessibilityRole="button"
-                accessibilityLabel={t.howToPlay}
-              >
-                <Text style={styles.linkText}>{t.howToPlay}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.linkButton}
-                onPress={() => navigation.navigate('Stats' as never)}
-                accessibilityRole="button"
-                accessibilityLabel={t.stats}
-              >
-                <Text style={styles.linkText}>{t.stats}</Text>
-              </TouchableOpacity>
-            </View>
+            {step === 'selectMode' ? renderSelectMode() : renderConfigureStep()}
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
 
-      {/* Tutorial overlay */}
       <Tutorial
         visible={tutorialVisible}
         onClose={() => setTutorialVisible(false)}
@@ -379,6 +590,8 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     alignItems: 'center',
   },
+
+  // ─── Logo ───
   logoContainer: {
     marginBottom: 24,
     width: 250,
@@ -397,62 +610,91 @@ const styles = StyleSheet.create({
     width: 340,
     height: 340,
   },
+  logoContainerSmall: {
+    marginBottom: 16,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0d5a2e',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  logoSmall: {
+    width: 160,
+    height: 160,
+  },
+
+  // ─── Section titles ───
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.primary,
     marginBottom: 16,
   },
-  gameModeButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 32,
+  configTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.accent,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+
+  // ─── Step 1: Game mode cards ───
+  modeCardsContainer: {
     width: '100%',
+    gap: 12,
+    marginBottom: 24,
   },
-  gameModeButtonsRTL: {
+  modeCard: {
     flexDirection: 'row',
-  },
-  gameModeButton: {
-    flex: 1,
-    minWidth: 100,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: colors.secondary,
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 90,
-  },
-  gameModeButtonSelected: {
     backgroundColor: colors.secondary,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
     borderWidth: 2,
-    borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    borderColor: colors.border,
   },
-  gameModeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+  modeCardEmoji: {
+    fontSize: 32,
+    marginRight: 16,
+  },
+  modeCardTextContainer: {
+    flex: 1,
+  },
+  modeCardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: colors.foreground,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  gameModeButtonTextSelected: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.foreground,
-    marginBottom: 4,
-  },
-  gameModeSubtext: {
-    fontSize: 12,
+  modeCardSubtext: {
+    fontSize: 13,
     color: colors.mutedForeground,
   },
-  gameModeSubtextSelected: {
-    fontSize: 12,
-    color: colors.mutedForeground,
+
+  // ─── Step 2: Config header ───
+  configHeader: {
+    width: '100%',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
+  backButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+
+  // ─── Player selector ───
   playerButtons: {
     flexDirection: 'row',
     gap: 16,
@@ -486,6 +728,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.primaryForeground,
   },
+
+  // ─── Difficulty ───
   difficultyButton: {
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -512,11 +756,13 @@ const styles = StyleSheet.create({
   difficultyButtonTextSelected: {
     color: colors.primaryForeground,
   },
+
+  // ─── Timed mode ───
   timedModeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 24,
     width: '100%',
   },
   timedModeDesc: {
@@ -525,6 +771,92 @@ const styles = StyleSheet.create({
     marginTop: -12,
     marginBottom: 4,
   },
+
+  // ─── Private: Create / Join choice ───
+  privateChoiceCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.secondary,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  privateChoiceEmoji: {
+    fontSize: 32,
+    marginRight: 16,
+  },
+  privateChoiceTextContainer: {
+    flex: 1,
+  },
+  privateChoiceTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.foreground,
+    marginBottom: 2,
+  },
+  privateChoiceDesc: {
+    fontSize: 13,
+    color: colors.mutedForeground,
+  },
+  orText: {
+    fontSize: 14,
+    color: colors.mutedForeground,
+    marginVertical: 12,
+  },
+
+  // ─── Private: Join code input ───
+  joinRow: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  joinInput: {
+    width: '100%',
+    backgroundColor: colors.secondary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    color: colors.foreground,
+    fontSize: 24,
+    fontWeight: 'bold',
+    letterSpacing: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    textAlign: 'center',
+  },
+
+  // ─── Action button ───
+  actionButton: {
+    width: '100%',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    marginBottom: 24,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  actionButtonGradient: {
+    paddingHorizontal: 60,
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+  },
+  actionButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.primaryForeground,
+  },
+
+  // ─── Resume button ───
   resumeButton: {
     width: '100%',
     borderRadius: 12,
@@ -542,29 +874,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.gold,
   },
-  startButton: {
-    width: '100%',
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    marginBottom: 24,
-  },
-  startButtonGradient: {
-    paddingHorizontal: 60,
-    paddingVertical: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 56,
-  },
-  startButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.primaryForeground,
-  },
+
+  // ─── Bottom links ───
   bottomLinks: {
     flexDirection: 'row',
     gap: 24,
@@ -579,6 +890,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textDecorationLine: 'underline',
   },
+
+  // ─── Language toggle ───
   languageButton: {
     position: 'absolute',
     left: 20,
