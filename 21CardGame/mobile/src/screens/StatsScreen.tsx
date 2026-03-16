@@ -19,6 +19,7 @@ type Language = 'he' | 'en';
 const translations = {
   he: {
     title: 'סטטיסטיקות',
+    totalPoints: 'סה"כ נקודות',
     gamesPlayed: 'משחקים',
     wins: 'ניצחונות',
     losses: 'הפסדים',
@@ -32,6 +33,7 @@ const translations = {
   },
   en: {
     title: 'Statistics',
+    totalPoints: 'Total Points',
     gamesPlayed: 'Games Played',
     wins: 'Wins',
     losses: 'Losses',
@@ -89,14 +91,21 @@ export function StatsScreen({ navigation }: StatsScreenProps) {
         {stats.gamesPlayed === 0 ? (
           <Text style={styles.noGames}>{t.noGames}</Text>
         ) : (
-          <View style={styles.grid}>
-            {statItems.map((item, idx) => (
-              <View key={idx} style={styles.statCard}>
-                <Text style={styles.statValue}>{item.value}</Text>
-                <Text style={styles.statLabel}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
+          <>
+            <View style={styles.totalPointsCard}>
+              <Text style={styles.totalPointsLabel}>{t.totalPoints}</Text>
+              <Text style={styles.totalPointsValue}>{stats.totalPoints.toLocaleString()}</Text>
+            </View>
+
+            <View style={styles.grid}>
+              {statItems.map((item, idx) => (
+                <View key={idx} style={styles.statCard}>
+                  <Text style={styles.statValue}>{item.value}</Text>
+                  <Text style={styles.statLabel}>{item.label}</Text>
+                </View>
+              ))}
+            </View>
+          </>
         )}
 
         {achievements.length > 0 && (
@@ -158,6 +167,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 40,
+  },
+  totalPointsCard: {
+    backgroundColor: colors.secondary,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 40,
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 2,
+    borderColor: colors.gold,
+    shadowColor: colors.gold,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+    minWidth: 200,
+  },
+  totalPointsLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.mutedForeground,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  totalPointsValue: {
+    fontSize: 42,
+    fontWeight: 'bold',
+    color: colors.gold,
   },
   grid: {
     flexDirection: 'row',

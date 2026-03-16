@@ -12,6 +12,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { loadLanguagePreference } from '../utils/storage';
+import { loadGameStats } from '../utils/gameStats';
 import { RootStackParamList } from '../navigation/types';
 
 type Language = 'he' | 'en';
@@ -29,6 +30,7 @@ const translations = {
     title: 'טבלת ניקוד',
     victory: 'ניצחון!',
     score: 'ניקוד:',
+    totalPoints: 'סה"כ נקודות',
     playAgain: 'שחק שוב',
     rematch: 'משחק חוזר',
     backToMenu: 'חזור לתפריט',
@@ -37,6 +39,7 @@ const translations = {
     title: 'Scoreboard',
     victory: 'Victory!',
     score: 'Score:',
+    totalPoints: 'Total Points',
     playAgain: 'Play Again',
     rematch: 'Rematch',
     backToMenu: 'Back to Menu',
@@ -46,10 +49,14 @@ const translations = {
 export function ScoreboardScreen({ navigation, route }: ScoreboardScreenProps) {
   const { players, gameMode, numPlayers, aiDifficulty } = route.params;
   const [language, setLanguage] = useState<Language>('he');
+  const [totalPoints, setTotalPoints] = useState<number | null>(null);
 
   useEffect(() => {
     loadLanguagePreference().then(lang => {
       setLanguage(lang);
+    });
+    loadGameStats().then(stats => {
+      setTotalPoints(stats.totalPoints);
     });
   }, []);
 
@@ -160,6 +167,13 @@ export function ScoreboardScreen({ navigation, route }: ScoreboardScreenProps) {
               );
             })}
           </View>
+
+          {totalPoints != null && (
+            <View style={styles.totalPointsBanner}>
+              <Text style={styles.totalPointsLabel}>{t.totalPoints}</Text>
+              <Text style={styles.totalPointsValue}>{totalPoints.toLocaleString()}</Text>
+            </View>
+          )}
 
           <View style={styles.actions}>
             <TouchableOpacity
@@ -294,6 +308,31 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.primaryForeground,
+  },
+  totalPointsBanner: {
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    backgroundColor: colors.secondary,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.gold,
+    alignSelf: 'center',
+    minWidth: 180,
+  },
+  totalPointsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.mutedForeground,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  totalPointsValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.gold,
   },
   actions: {
     width: '100%',

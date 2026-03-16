@@ -28,6 +28,7 @@ export type RootStackParamList = {
     playerAvatar: string;
     privateAction?: 'create' | 'join';
     joinCode?: string;
+    timedMode?: boolean;
   };
   Stats: undefined;
 };

@@ -97,7 +97,7 @@ type PrivateStep = 'choose' | 'hosting' | 'joining';
 const WAIT_TIMEOUT_MS = 90 * 1000;
 
 export function WaitingRoomScreen({ navigation, route }: WaitingRoomScreenProps) {
-  const { gameMode, numPlayers, playerName, playerAvatar, privateAction, joinCode: initialJoinCode } = route.params;
+  const { gameMode, numPlayers, playerName, playerAvatar, privateAction, joinCode: initialJoinCode, timedMode } = route.params;
   const isPrivate = gameMode === 'private';
 
   const initialStep: PrivateStep = privateAction === 'create' ? 'hosting'
@@ -164,6 +164,7 @@ export function WaitingRoomScreen({ navigation, route }: WaitingRoomScreenProps)
           gameMode,
           roomCode: roomCodeRef.current || undefined,
           playerId: playerIdRef.current || undefined,
+          timedMode: (event as any).timedMode ?? timedMode,
         });
         break;
       case 'error':
@@ -208,7 +209,7 @@ export function WaitingRoomScreen({ navigation, route }: WaitingRoomScreenProps)
   useEffect(() => {
     if (!isPrivate) {
       connectAndDo((service) => {
-        service.joinMatchmaking(playerName, playerAvatar, numPlayers);
+        service.joinMatchmaking(playerName, playerAvatar, numPlayers, timedMode);
       });
     } else if (privateAction === 'create') {
       connectAndDo((service) => {

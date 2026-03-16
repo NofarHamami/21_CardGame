@@ -20,6 +20,7 @@ interface Room {
   status: 'waiting' | 'playing' | 'finished';
   gameState: any | null;
   mode: 'private' | 'random';
+  timedMode?: boolean;
 }
 
 interface QueueEntry {
@@ -28,6 +29,7 @@ interface QueueEntry {
   name: string;
   avatar: string;
   numPlayers: number;
+  timedMode: boolean;
   joinedAt: number;
 }
 
@@ -127,17 +129,21 @@ function validateMove(room: Room, playerId: string, move: any): string | null {
 
 /**
  * Try to match players in the queue into a game room.
+ * Groups by numPlayers AND timedMode so players only match with identical settings.
  */
 function processMatchmakingQueue() {
-  // Group by desired numPlayers
-  const bySize = new Map<number, QueueEntry[]>();
+  // Group by "numPlayers|timedMode" key
+  const byKey = new Map<string, QueueEntry[]>();
   for (const entry of matchmakingQueue) {
-    const list = bySize.get(entry.numPlayers) || [];
+    const key = `${entry.numPlayers}|${entry.timedMode}`;
+    const list = byKey.get(key) || [];
     list.push(entry);
-    bySize.set(entry.numPlayers, list);
+    byKey.set(key, list);
   }
 
-  for (const [numPlayers, entries] of bySize) {
+  for (const [, entries] of byKey) {
+    const numPlayers = entries[0].numPlayers;
+    const timedMode = entries[0].timedMode;
     while (entries.length >= numPlayers) {
       const matched = entries.splice(0, numPlayers);
       // Remove from global queue
@@ -162,6 +168,7 @@ function processMatchmakingQueue() {
         status: 'waiting',
         gameState: null,
         mode: 'random',
+        timedMode,
       };
 
       rooms.set(code, room);
@@ -185,6 +192,7 @@ function processMatchmakingQueue() {
                 avatar: p.avatar,
                 playerIndex: p.playerIndex,
               })),
+              timedMode: room.timedMode || false,
             },
           });
         }
@@ -215,6 +223,17 @@ wss.on('connection', (ws: WebSocket) => {
     } catch {
       sendTo(ws, { type: 'error', payload: { message: 'Invalid JSON' } });
       return;
+    }
+
+    // Resolve currentRoom for players matched via matchmaking queue
+    // (processMatchmakingQueue creates rooms but can't update this closure variable)
+    if (!currentRoom) {
+      for (const room of rooms.values()) {
+        if (room.players.some(p => p.id === playerId)) {
+          currentRoom = room;
+          break;
+        }
+      }
     }
 
     switch (data.type) {
@@ -281,7 +300,7 @@ wss.on('connection', (ws: WebSocket) => {
       }
 
       case 'join_matchmaking': {
-        const { playerName, playerAvatar, numPlayers } = data.payload || {};
+        const { playerName, playerAvatar, numPlayers, timedMode } = data.payload || {};
         // Remove any existing queue entry for this player
         const existingIdx = matchmakingQueue.findIndex(e => e.playerId === playerId);
         if (existingIdx >= 0) matchmakingQueue.splice(existingIdx, 1);
@@ -292,6 +311,7 @@ wss.on('connection', (ws: WebSocket) => {
           name: playerName || 'Player',
           avatar: playerAvatar || '😎',
           numPlayers: numPlayers || 2,
+          timedMode: !!timedMode,
           joinedAt: Date.now(),
         });
 

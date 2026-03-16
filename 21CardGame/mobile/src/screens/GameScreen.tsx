@@ -113,10 +113,27 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numPlayers, playerName, playerAvatar, gameMode, language, t, aiDifficulty, timedMode]);
 
+  // Apply timed mode for multiplayer once game is initialized
+  useEffect(() => {
+    if (!isMultiplayer || !gameEngine.isGameStarted) return;
+    if (timedMode) gameEngine.setTimedMode(true);
+  }, [isMultiplayer, gameEngine.isGameStarted, timedMode]);
+
   // Navigate to scoreboard when game ends
   useEffect(() => {
     if (gameEngine.isGameOver && gameEngine.winner && !hasNavigatedToScoreboard.current) {
       hasNavigatedToScoreboard.current = true;
+
+      const playersSortedByCards = [...gameEngine.players].sort((a, b) => {
+        return getPersonalPileSize(a) - getPersonalPileSize(b);
+      });
+
+      const playersWithScores = playersSortedByCards.map((player, index) => ({
+        name: player.name,
+        avatar: player.avatar,
+        score: calculateScore(player, index + 1, gameEngine.players.length),
+        cardsRemaining: getPersonalPileSize(player),
+      }));
 
       if (!hasRecordedResult.current) {
         hasRecordedResult.current = true;
@@ -125,12 +142,20 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
           ? gameEngine.winner.playerNumber === localIndex + 1
           : !gameEngine.winner.isAI;
 
+        const humanPlayer = isMultiplayer
+          ? playersWithScores.find(p => p.name === playerName)
+          : playersWithScores.find((_, idx) => {
+              const original = playersSortedByCards[idx];
+              return !original.isAI;
+            });
+        const humanScore = humanPlayer?.score ?? 0;
+
         if (humanWon) {
           playWinSound();
         } else {
           playLoseSound();
         }
-        recordGameResult(humanWon, gameEngine.turnCount).then(stats => {
+        recordGameResult(humanWon, gameEngine.turnCount, humanScore).then(stats => {
           checkAndUnlockAchievements({
             won: humanWon,
             turnsPlayed: gameEngine.turnCount,
@@ -149,17 +174,6 @@ export function GameScreen({ navigation, route }: GameScreenProps) {
           totalTurns: gameEngine.turnCount,
         });
       }
-
-      const playersSortedByCards = [...gameEngine.players].sort((a, b) => {
-        return getPersonalPileSize(a) - getPersonalPileSize(b);
-      });
-
-      const playersWithScores = playersSortedByCards.map((player, index) => ({
-        name: player.name,
-        avatar: player.avatar,
-        score: calculateScore(player, index + 1, gameEngine.players.length),
-        cardsRemaining: getPersonalPileSize(player),
-      }));
 
       const timer = setTimeout(() => {
         navigation.replace('Scoreboard', {

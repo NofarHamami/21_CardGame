@@ -502,8 +502,9 @@ export function GameBoard({ gameEngine, onNewGame, onRematch, isMultiplayer, isM
       return;
     }
 
-    const centerIntent = currentPlayerIndex === 0 ? dy < -60 : dy > 60;
-    const storageIntent = currentPlayerIndex === 0 ? dy > 60 : dy < -60;
+    const isBottom = displayCurrentIndex === 0;
+    const centerIntent = isBottom ? dy < -60 : dy > 60;
+    const storageIntent = isBottom ? dy > 60 : dy < -60;
 
     if (centerIntent) {
       if (!tryPlayToCenterNearest()) tryPlayToStorage();
@@ -514,7 +515,7 @@ export function GameBoard({ gameEngine, onNewGame, onRematch, isMultiplayer, isM
         clearSelection();
       }
     }
-  }, [playDirectToCenter, playDirectToStorage, centerPiles, screenWidth, screenHeight, currentPlayerIndex, snapshotHandSize, clearSelection]);
+  }, [playDirectToCenter, playDirectToStorage, centerPiles, screenWidth, screenHeight, displayCurrentIndex, snapshotHandSize, clearSelection]);
 
   const handleToggleMute = useCallback(() => {
     const newMuted = !soundMuted;

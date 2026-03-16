@@ -29,7 +29,7 @@ export type MultiplayerEvent =
   | { type: 'room_created'; room: RoomInfo }
   | { type: 'player_joined'; player: PlayerInfo; room: RoomInfo }
   | { type: 'player_left'; playerId: string; room: RoomInfo }
-  | { type: 'game_started'; players: PlayerInfo[]; localPlayerIndex: number }
+  | { type: 'game_started'; players: PlayerInfo[]; localPlayerIndex: number; timedMode?: boolean }
   | { type: 'state_updated'; state: GameState; move?: unknown }
   | { type: 'move_rejected'; message: string }
   | { type: 'game_over'; state: GameState }
@@ -191,6 +191,7 @@ export class MultiplayerService {
           type: 'game_started',
           players,
           localPlayerIndex: this._localPlayerIndex,
+          timedMode: payload?.timedMode,
         });
         break;
       }
@@ -236,8 +237,8 @@ export class MultiplayerService {
     this.send('join_room', { roomCode, playerName, playerAvatar });
   }
 
-  joinMatchmaking(playerName: string, playerAvatar: string, numPlayers: number): void {
-    this.send('join_matchmaking', { playerName, playerAvatar, numPlayers });
+  joinMatchmaking(playerName: string, playerAvatar: string, numPlayers: number, timedMode?: boolean): void {
+    this.send('join_matchmaking', { playerName, playerAvatar, numPlayers, timedMode: !!timedMode });
   }
 
   startGame(): void {

@@ -10,6 +10,7 @@ export interface GameStats {
   currentWinStreak: number;
   longestWinStreak: number;
   totalTurnsPlayed: number;
+  totalPoints: number;
 }
 
 const DEFAULT_STATS: GameStats = {
@@ -19,6 +20,7 @@ const DEFAULT_STATS: GameStats = {
   currentWinStreak: 0,
   longestWinStreak: 0,
   totalTurnsPlayed: 0,
+  totalPoints: 0,
 };
 
 function getStorage() {
@@ -40,7 +42,16 @@ export async function loadGameStats(): Promise<GameStats> {
     const storage = getStorage();
     const raw = await storage.getItem(STATS_KEY);
     if (raw) {
-      return { ...DEFAULT_STATS, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      const stats = { ...DEFAULT_STATS, ...parsed };
+
+      // Migrate: retroactively credit points for games played before tracking
+      if (parsed.totalPoints === undefined && stats.gamesPlayed > 0) {
+        stats.totalPoints = (stats.gamesWon * 100) + (stats.gamesLost * 80);
+        await saveGameStats(stats);
+      }
+
+      return stats;
     }
   } catch {
     // ignore
@@ -57,10 +68,11 @@ export async function saveGameStats(stats: GameStats): Promise<void> {
   }
 }
 
-export async function recordGameResult(won: boolean, turnsPlayed: number): Promise<GameStats> {
+export async function recordGameResult(won: boolean, turnsPlayed: number, score: number = 0): Promise<GameStats> {
   const stats = await loadGameStats();
   stats.gamesPlayed += 1;
   stats.totalTurnsPlayed += turnsPlayed;
+  stats.totalPoints += score;
 
   if (won) {
     stats.gamesWon += 1;

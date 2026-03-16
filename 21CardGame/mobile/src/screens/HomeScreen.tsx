@@ -208,6 +208,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           numPlayers: selectedPlayers,
           playerName: savedPreferences.name,
           playerAvatar: savedPreferences.avatar,
+          timedMode,
         });
       } else if (mode === 'private' && privateAction === 'create') {
         navigation.navigate('WaitingRoom', {
